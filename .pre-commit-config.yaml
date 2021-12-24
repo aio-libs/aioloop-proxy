@@ -1,0 +1,67 @@
+minimum_pre_commit_version: 2.16.0
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 'v4.0.1'
+  hooks:
+  - id: check-merge-conflict
+    exclude: "rst$"
+- repo: https://github.com/asottile/yesqa
+  rev: v1.3.0
+  hooks:
+  - id: yesqa
+- repo: https://github.com/aio-libs/sort-all
+  rev: v1.1.0
+  hooks:
+  - id: sort-all
+- repo: https://github.com/Zac-HD/shed
+  rev: 0.6.0
+  hooks:
+  - id: shed
+    args:
+    - --refactor
+    - --py39-plus
+    types_or:
+    - python
+    - markdown
+    - rst
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 'v4.0.1'
+  hooks:
+  - id: check-case-conflict
+  - id: check-json
+  - id: check-xml
+  - id: check-yaml
+  - id: debug-statements
+  - id: check-added-large-files
+  - id: end-of-file-fixer
+    exclude: "[.]md$"
+  - id: requirements-txt-fixer
+  - id: trailing-whitespace
+    exclude: "[.]ref$"
+  - id: check-symlinks
+  - id: debug-statements
+  - id: file-contents-sorter
+    files: |
+      (?x)^(
+        .gitignore|
+        neuro-sdk/docs/spelling_wordlist.txt
+      )$
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.6.8
+  hooks:
+  - id: actionlint-docker
+    args:
+    - -ignore
+    - 'SC2155:'
+    - -ignore
+    - 'SC2086:'
+    - -ignore
+    - 'SC1004:'
+- repo: https://github.com/sirosen/check-jsonschema
+  rev: 0.9.1
+  hooks:
+  - id: check-github-actions
+ci:
+  skip:
+  - actionlint-docker
+  - check-github-actions

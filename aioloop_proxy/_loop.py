@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import warnings
 import weakref
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
@@ -28,6 +29,8 @@ class _LoopProxy(asyncio.AbstractEventLoop):
 
         self._task_factory = None
         self._default_executor = None
+        self._executor_shutdown_called = False
+
         # shared state, need to restore parent loop
         self._debug = parent.get_debug()
         self._exception_handler = parent.get_exception_handler()
@@ -49,9 +52,11 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         self._parent.run_forever()
 
-    def run_until_complete(self, future):
-        self._check_closed()
-        return self._parent.run_until_complete(future)
+    def run_until_complete(self, coro_or_future):
+        async def main():
+            return await _Awaiter(coro_or_future, self._parent, self)
+
+        return self._parent.run_until_complete(main())
 
     def stop(self):
         return self._parent.stop()
@@ -66,15 +71,43 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         if self.is_running():
             raise RuntimeError("Cannot close a running event loop")
         self._closed = True
+        self._executor_shutdown_called = True
+        executor = self._default_executor
+        if executor is not None:
+            warnings.warn(
+                "Please call 'await proxy.shutdown_default_executor() explicitly "
+                "before 'loop.close()' call.",
+                RuntimeWarning,
+            )
+            self._default_executor = None
+            executor.shutdown(wait=False)
         # Raise errors?
 
     async def shutdown_asyncgens(self):
-        # raise UnsupportedError?
-        return await self._parent.shutdown_asyncgens()
+        warnings.warn(
+            "Only original loop can shutdown async generators", RuntimeWarning
+        )
+        return
 
     async def shutdown_default_executor(self):
-        # raise UnsupportedError?
-        return await self._parent.shutdown_default_executor()
+        """Schedule the shutdown of the default executor."""
+        self._executor_shutdown_called = True
+        if self._default_executor is None:
+            return
+        future = self.create_future()
+        thread = threading.Thread(target=self._do_shutdown, args=(future,))
+        thread.start()
+        try:
+            await future
+        finally:
+            thread.join()
+
+    def _do_shutdown(self, future):
+        try:
+            self._default_executor.shutdown(wait=True)
+            self.call_soon_threadsafe(future.set_result, None)
+        except Exception as ex:
+            self.call_soon_threadsafe(future.set_exception, ex)
 
     # Methods scheduling callbacks.  All these return Handles.
 
@@ -468,6 +501,10 @@ class _LoopProxy(asyncio.AbstractEventLoop):
     def _check_closed(self):
         if self._closed:
             raise RuntimeError("Event loop is closed")
+
+    def _check_default_executor(self):
+        if self._executor_shutdown_called:
+            raise RuntimeError("Executor shutdown has been called")
 
     def _wrap_sync(self, __func, *args, **kwargs):
         # Private API calls are OK here

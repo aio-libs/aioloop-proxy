@@ -4,11 +4,7 @@ import warnings
 import weakref
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
-from ._protocol import (
-    _proto_proxy,
-    _proto_proxy_factory,
-    _proto_subprocess_proxy_factory,
-)
+from ._protocol import _proto_proxy, _proto_proxy_factory
 
 
 class _LoopProxy(asyncio.AbstractEventLoop):
@@ -241,6 +237,7 @@ class _LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), host, port, **kwargs
             )
         )
+        server = _ServerProxy(server, self)
         self._servers.add(server)
         return server
 
@@ -281,6 +278,7 @@ class _LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), path, **kwargs
             )
         )
+        server = _ServerProxy(server, self)
         self._servers.add(server)
         return server
 
@@ -337,7 +335,7 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         transp, proto = await self._wrap_async(
             self._parent.subprocess_shell(
-                _proto_subprocess_proxy_factory(protocol_factory, self), cmd, **kwargs
+                _proto_proxy_factory(protocol_factory, self), cmd, **kwargs
             )
         )
         self._transports.add(transp)
@@ -347,7 +345,7 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         transp, proto = await self._wrap_async(
             self._parent.subprocess_exec(
-                _proto_subprocess_proxy_factory(protocol_factory, self), *args, **kwargs
+                _proto_proxy_factory(protocol_factory, self), *args, **kwargs
             )
         )
         self._transports.add(transp)
@@ -511,6 +509,16 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         loop = asyncio._get_running_loop()
         assert loop is None or loop is self
         asyncio._set_running_loop(self._parent)
+        try:
+            return __func(*args, **kwargs)
+        finally:
+            asyncio._set_running_loop(loop)
+
+    def _wrap_sync_proto(self, __func, *args, **kwargs):
+        # Private API calls are OK here
+        loop = asyncio._get_running_loop()
+        assert loop is None or loop is self._parent
+        asyncio._set_running_loop(self)
         try:
             return __func(*args, **kwargs)
         finally:

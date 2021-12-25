@@ -1,0 +1,12 @@
+[build-system]
+requires = [
+    "setuptools >= 46.4.0",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.towncrier]
+package = "aioloop-proxy"
+filename = "CHANGES.rst"
+directory = "CHANGES/"
+title_format = "{version} ({project_date})"
+issue_format = "`#{issue} <https://github.com/aio-libs/aioloop-proxy/issues/{issue}>`_"

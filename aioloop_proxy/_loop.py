@@ -1,13 +1,15 @@
 import asyncio
 import concurrent.futures
+import threading
 import warnings
 import weakref
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _proto_proxy, _proto_proxy_factory
+from ._server import _ServerProxy
 
 
-class _LoopProxy(asyncio.AbstractEventLoop):
+class LoopProxy(asyncio.AbstractEventLoop):
     def __init__(self, parent) -> None:
         assert isinstance(parent, asyncio.AbstractEventLoop)
         self._parent = parent
@@ -41,6 +43,11 @@ class _LoopProxy(asyncio.AbstractEventLoop):
     def slow_callback_duration(self, value):
         self._slow_callback_duration = value
         self._parent.slow_callback_duration = value
+
+    # Proxy-specific API
+
+    def check_resouces(self, *, strict=False):
+        pass
 
     # Running and stopping the event loop.
 
@@ -77,7 +84,6 @@ class _LoopProxy(asyncio.AbstractEventLoop):
             )
             self._default_executor = None
             executor.shutdown(wait=False)
-        # Raise errors?
 
     async def shutdown_asyncgens(self):
         warnings.warn(
@@ -86,7 +92,6 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         return
 
     async def shutdown_default_executor(self):
-        """Schedule the shutdown of the default executor."""
         self._executor_shutdown_called = True
         if self._default_executor is None:
             return
@@ -537,7 +542,7 @@ class _LoopProxy(asyncio.AbstractEventLoop):
         while True:
             if loop is self._parent:
                 break
-            elif isinstance(loop, _LoopProxy):
+            elif isinstance(loop, LoopProxy):
                 loop = loop._loop
             else:
                 raise AssertionError(f"Foreign loop {loop!r} is active")

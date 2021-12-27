@@ -39,11 +39,10 @@ class SrvProto(asyncio.Protocol):
     def data_received(self, data):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
+        self.transp.write(b"ACK:" + data)
         if data == b"STOP":
             self.eof = True
             self.transp.write_eof()
-        else:
-            self.transp.write(b"ACK:" + data)
         self.events.add("DATA")
 
     def eof_received(self):
@@ -206,6 +205,32 @@ class TestTCP(unittest.TestCase):
             await server.wait_closed()
 
             self.assertSetEqual(proto.events, {"MADE", "DATA", "EOF", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_serve_forever(self):
+        def g(server):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            addr = server.sockets[0].getsockname()
+            sock.connect(addr)
+            data = sock.recv(1024)
+            self.assertEqual(b"CONNECTED\n", data)
+            sock.close()
+
+        async def f():
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0
+            )
+
+            server_task = self.loop.create_task(server.serve_forever())
+            await self.loop.run_in_executor(None, g, server)
+            server_task.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                await server_task
+
+            self.assertFalse(server.is_serving())
 
         self.loop.run_until_complete(f())
 

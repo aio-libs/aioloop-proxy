@@ -263,7 +263,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         sent_count = await self._wrap_async(
             self._parent.sendfile(
-                transport._parent, file, offset, count, fallback=fallback
+                transport._orig, file, offset, count, fallback=fallback
             )
         )
         return sent_count

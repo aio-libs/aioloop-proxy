@@ -1,4 +1,5 @@
 import asyncio
+import pathlib
 import socket
 import unittest
 
@@ -80,7 +81,8 @@ class CliProto(asyncio.Protocol):
         self.case.assertIs(loop, self.loop)
         self.events.add("DATA")
         self._data.append(data)
-        self._recv.set_result(None)
+        if not self._recv.done():
+            self._recv.set_result(None)
 
     def eof_received(self):
         loop = asyncio.get_running_loop()
@@ -364,6 +366,36 @@ class TestTCP(unittest.TestCase):
             self.assertEqual(low1, low2)
             self.assertEqual(high1, high2)
             tr.set_write_buffer_limits(high0, low0)
+            tr.close()
+            self.assertTrue(tr.is_closing())
+            await pr.closed
+
+            server.close()
+            await server.wait_closed()
+
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_sendfile(self):
+        async def f():
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0
+            )
+            addr = server.sockets[0].getsockname()
+            host, port = addr[:2]
+
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            data = await pr.recv()
+            self.assertEqual(b"CONNECTED\n", data)
+            fname = pathlib.Path(__file__)
+            with fname.open("rb") as fp:
+                await self.loop.sendfile(tr, fp)
+            ret = await pr.recv()
+            self.assertEqual(ret, b"ACK:" + fname.read_bytes())
             tr.close()
             self.assertTrue(tr.is_closing())
             await pr.closed

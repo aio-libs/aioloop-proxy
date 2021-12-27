@@ -23,10 +23,10 @@ class _ServerProxy(asyncio.AbstractServer):
         return self._loop._wrap_sync(self._original.close)
 
     async def start_serving(self):
-        return self._loop._wrap_async(self._original.start_serving())
+        return await self._loop._wrap_async(self._original.start_serving())
 
     async def serve_forever(self):
-        return self._loop._wrap_async(self._original.serve_forever())
+        return await self._loop._wrap_async(self._original.serve_forever())
 
     async def wait_closed(self):
-        return self._loop._wrap_async(self._original.wait_closed())
+        return await self._loop._wrap_async(self._original.wait_closed())

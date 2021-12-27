@@ -120,6 +120,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self.call_soon_threadsafe(future.set_result, None)
         except Exception as ex:
             self.call_soon_threadsafe(future.set_exception, ex)
+        finally:
+            self._default_executor = None
 
     # Methods scheduling callbacks.  All these return Handles.
 

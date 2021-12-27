@@ -1,7 +1,7 @@
 import asyncio
 
 
-class _BaseTransportProxy:
+class _BaseTransportProxy(asyncio.BaseTransport):
     def __init__(self, loop, original):
         self._loop = loop
         self._orig = original
@@ -30,7 +30,7 @@ class _BaseTransportProxy:
         return self._loop._wrap_sync(self._orig.get_protocol)
 
 
-class _ReadTransportProxy(_BaseTransportProxy):
+class _ReadTransportProxy(_BaseTransportProxy, asyncio.ReadTransport):
     def is_reading(self):
         return self._loop._wrap_sync(self._orig.is_reading)
 
@@ -41,7 +41,7 @@ class _ReadTransportProxy(_BaseTransportProxy):
         return self._loop._wrap_sync(self._orig.resume_reading)
 
 
-class _WriteTransportProxy(_BaseTransportProxy):
+class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
     def set_write_buffer_limits(self, high=None, low=None):
         return self._loop._wrap_sync(self._orig.set_write_buffer_limits, high, low)
 
@@ -64,11 +64,11 @@ class _WriteTransportProxy(_BaseTransportProxy):
         return self._loop._wrap_sync(self._orig.abort)
 
 
-class _TransportProxy(_ReadTransportProxy, _WriteTransportProxy):
+class _TransportProxy(_ReadTransportProxy, _WriteTransportProxy, asyncio.Transport):
     pass
 
 
-class _DatagramTransportProxy(_BaseTransportProxy):
+class _DatagramTransportProxy(_BaseTransportProxy, asyncio.DatagramTransport):
     def sendto(self, data, addr=None):
         return self._loop._wrap_sync(self._orig.sendto, data, addr)
 
@@ -76,7 +76,7 @@ class _DatagramTransportProxy(_BaseTransportProxy):
         return self._loop._wrap_sync(self._orig.abort)
 
 
-class _SubprocessTransportProxy(_BaseTransportProxy):
+class _SubprocessTransportProxy(_BaseTransportProxy, asyncio.SubprocessTransport):
     def get_pid(self):
         return self._loop._wrap_sync(self._orig.get_pid)
 

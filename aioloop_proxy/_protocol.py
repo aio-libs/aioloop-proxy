@@ -13,7 +13,7 @@ class _BaseProtocolProxy:
         return f"<Proxy Protocol for {self.protocol!r}"
 
     def connection_made(self, transport):
-        self.transport = _make_transport_proxy(self._loop, transport)
+        self.transport = _make_transport_proxy(transport, self._loop)
         self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)
 
     def connection_lost(self, exc):

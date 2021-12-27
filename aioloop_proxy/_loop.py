@@ -205,7 +205,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.run_in_executor, executor, func, *args
         )
         fut = self.create_future()
-        self._chain_future(fut, parent_fut)
+        _chain_future(fut, parent_fut)
         self._futures.add(fut)
         return fut
 
@@ -559,27 +559,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
             handle._parent = None
             asyncio._set_running_loop(loop)
 
-    def _chain_future(self, self_fut, parent_fut):
-        def _call_check_cancel(self_fut):
-            if self_fut.cancelled():
-                parent_fut.cancel()
-
-        def _call_set_state(parent_fut):
-            if self.is_closed():
-                return
-            if parent_fut.cancelled():
-                self_fut.cancel()
-                return
-            exc = parent_fut.exception()
-            if exc is not None:
-                self_fut.set_exception(exc)
-            else:
-                res = parent_fut.result()
-                self_fut.set_result(res)
-
-        self_fut.add_done_callback(_call_check_cancel)
-        parent_fut.add_done_callback(_call_set_state)
-
 
 class _Awaiter:
     # awaiting of the parent coroutine with implicit switching
@@ -592,7 +571,7 @@ class _Awaiter:
 
     def __await__(self):
         outer = self._outer_loop
-        inner = self._inner
+        inner = self._inner_loop
         assert asyncio._get_running_loop() is outer
         asyncio._set_running_loop(inner)
         try:
@@ -604,8 +583,32 @@ class _Awaiter:
             asyncio._set_running_loop(inner)
             try:
                 fut = it.__next__()
+                out_fut = outer.create_future()
+                _chain_future(fut, out_fut)
                 asyncio._set_running_loop(outer)
-                yield fut
+                yield out_fut.__await__()
             except StopIteration as exc:
                 asyncio._set_running_loop(outer)
                 return exc.value
+
+
+def _chain_future(self_fut, parent_fut):
+    def _call_check_cancel(self_fut):
+        if self_fut.cancelled():
+            parent_fut.cancel()
+
+    def _call_set_state(parent_fut):
+        if self_fut._loop.is_closed():
+            return
+        if parent_fut.cancelled():
+            self_fut.cancel()
+            return
+        exc = parent_fut.exception()
+        if exc is not None:
+            self_fut.set_exception(exc)
+        else:
+            res = parent_fut.result()
+            self_fut.set_result(res)
+
+    self_fut.add_done_callback(_call_check_cancel)
+    parent_fut.add_done_callback(_call_set_state)

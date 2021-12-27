@@ -1,3 +1,5 @@
+import asyncio
+
 from ._transport import _make_transport_proxy
 
 

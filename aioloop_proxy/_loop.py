@@ -543,7 +543,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         loop = asyncio._get_running_loop()
         assert loop is None or loop is self
         fut = self.create_future()
-        coro_or_future = asyncio.ensure_future(coro_or_future, loop=self)
+        coro_or_future = asyncio.ensure_future(coro_or_future, loop=self._parent)
         self._chain_future(fut, coro_or_future)
         return fut
 

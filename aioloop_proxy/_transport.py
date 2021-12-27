@@ -48,6 +48,9 @@ class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
     def get_write_buffer_size(self):
         return self._loop._wrap_sync(self._orig.get_write_buffer_size)
 
+    def get_write_buffer_limits(self):
+        return self._loop._wrap_sync(self._orig.get_write_buffer_limits)
+
     def write(self, data):
         return self._loop._wrap_sync(self._orig.write, data)
 

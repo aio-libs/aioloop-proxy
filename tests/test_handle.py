@@ -67,7 +67,7 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_soon_cancel(self):
+    def test_cancel(self):
         async def f():
             called = False
 
@@ -80,6 +80,23 @@ class TestHandleBase:
             await asyncio.sleep(0)
             self.assertTrue(handle.cancelled())
             self.assertFalse(called)
+
+        self.loop.run_until_complete(f())
+
+    def test_cancel_after_execution(self):
+        async def f():
+            called = False
+
+            def cb():
+                nonlocal called
+                called = True
+
+            handle = self.loop.call_soon(cb)
+            await asyncio.sleep(0)
+            self.assertFalse(handle.cancelled())
+            handle.cancel()
+            self.assertTrue(handle.cancelled())
+            self.assertTrue(called)
 
         self.loop.run_until_complete(f())
 

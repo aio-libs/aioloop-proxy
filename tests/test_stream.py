@@ -20,7 +20,7 @@ def tearDownModule():
     _loop = None
 
 
-class Proto(asyncio.Protocol):
+class SrvProto(asyncio.Protocol):
     def __init__(self, case):
         self.case = case
         self.loop = case.loop
@@ -53,6 +53,51 @@ class Proto(asyncio.Protocol):
         self.events.add("LOST")
 
 
+class CliProto(asyncio.Protocol):
+    def __init__(self, case):
+        self.case = case
+        self.loop = case.loop
+        self.transp = None
+        self.events = set()
+        self.closed = self.loop.create_future()
+        self._recv = self.loop.create_future()
+        self._data = []
+
+    def connection_made(self, transport):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.transp = transport
+        self.case.assertIsInstance(transport, asyncio.Transport)
+        self.events.add("MADE")
+
+    def data_received(self, data):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("DATA")
+        self._data.append(data)
+        self._recv.set_result(None)
+
+    def eof_received(self):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("EOF")
+
+    def connection_lost(self, exc):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("LOST")
+        self.closed.set_result(None)
+
+    async def recv(self):
+        try:
+            await self._recv
+            ret = b"".join(self._data)
+            self._data.clear()
+            return ret
+        finally:
+            self._recv = self.loop.create_future()
+
+
 class TestTCP(unittest.TestCase):
     def setUp(self):
         self.loop = aioloop_proxy.LoopProxy(_loop)
@@ -83,13 +128,14 @@ class TestTCP(unittest.TestCase):
             server.close()
 
         async def f():
-            proto = Proto(self)
+            proto = SrvProto(self)
             server = await self.loop.create_server(
                 lambda: proto, host="localhost", port=0, start_serving=False
             )
+            self.assertEqual(repr(server), repr(server._orig))
             self.assertIsInstance(server, asyncio.AbstractServer)
             self.assertIs(server.get_loop(), self.loop)
-            self.assertIsInstance(server._original, asyncio.AbstractServer)
+            self.assertIsInstance(server._orig, asyncio.AbstractServer)
             self.assertFalse(server.is_serving())
             await server.start_serving()
             self.assertTrue(server.is_serving())
@@ -98,5 +144,43 @@ class TestTCP(unittest.TestCase):
             await server.wait_closed()
 
             self.assertSetEqual(proto.events, {"MADE", "DATA", "EOF", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_connect(self):
+        async def f():
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0, start_serving=False
+            )
+            await server.start_serving()
+            addr = server.sockets[0].getsockname()
+            host, port = addr[:2]
+
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            self.assertEqual(repr(tr), repr(tr._orig))
+            self.assertEqual(tr.get_extra_info("peername"), addr)
+            self.assertFalse(tr.is_closing())
+            data = await pr.recv()
+            self.assertEqual(b"CONNECTED\n", data)
+            tr.write(b"1\n")
+            data = await pr.recv()
+            self.assertEqual(b"ACK:1\n", data)
+            tr.write(b"2\n")
+            data = await pr.recv()
+            self.assertEqual(b"ACK:2\n", data)
+            tr.write_eof()
+            data = await pr.recv()
+            self.assertEqual(b"EOF\n", data)
+            tr.close()
+            self.assertTrue(tr.is_closing())
+            await pr.closed
+
+            server.close()
+            await server.wait_closed()
+
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
 
         self.loop.run_until_complete(f())

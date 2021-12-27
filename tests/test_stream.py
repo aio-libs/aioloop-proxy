@@ -125,8 +125,6 @@ class TestTCP(unittest.TestCase):
             self.assertEqual(b"EOF\n", data)
             sock.close()
 
-            server.close()
-
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
@@ -141,6 +139,7 @@ class TestTCP(unittest.TestCase):
             self.assertTrue(server.is_serving())
 
             await self.loop.run_in_executor(None, g, server)
+            server.close()
             await server.wait_closed()
 
             self.assertSetEqual(proto.events, {"MADE", "DATA", "EOF", "LOST"})
@@ -171,9 +170,63 @@ class TestTCP(unittest.TestCase):
             tr.write(b"2\n")
             data = await pr.recv()
             self.assertEqual(b"ACK:2\n", data)
+            self.assertTrue(tr.can_write_eof())
             tr.write_eof()
             data = await pr.recv()
             self.assertEqual(b"EOF\n", data)
+            tr.close()
+            self.assertTrue(tr.is_closing())
+            await pr.closed
+
+            server.close()
+            await server.wait_closed()
+
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_abort(self):
+        async def f():
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0, start_serving=False
+            )
+            await server.start_serving()
+            addr = server.sockets[0].getsockname()
+            host, port = addr[:2]
+
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            tr.abort()
+            self.assertTrue(tr.is_closing())
+            await pr.closed
+
+            server.close()
+            await server.wait_closed()
+
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_pause_resume_reader(self):
+        async def f():
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0, start_serving=False
+            )
+            await server.start_serving()
+            addr = server.sockets[0].getsockname()
+            host, port = addr[:2]
+
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            self.assertTrue(tr.is_reading())
+            tr.pause_reading()
+            self.assertFalse(tr.is_reading())
+            tr.resume_reading()
+            self.assertTrue(tr.is_reading())
             tr.close()
             self.assertTrue(tr.is_closing())
             await pr.closed

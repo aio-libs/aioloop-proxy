@@ -8,7 +8,11 @@ lint:
 	pre-commit run --all-files
 
 test:
-	python -m unittest discover tests
+	python -We -m unittest discover tests
 
 cov:
 	coverage run -m unittest discover tests
+	@echo "Coverage report"
+	@coverage report
+	@coverage html
+	@echo "Use xdg-open file://`pwd`/htmlcov/index.html"

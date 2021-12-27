@@ -46,8 +46,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     # Proxy-specific API
 
-    def check_resouces(self, *, strict=False):
-        pass
+    def check_resouces(self, *, strict=None):
+        if strict is None:
+            strict = self.get_debug()
 
     # Running and stopping the event loop.
 
@@ -57,7 +58,17 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def run_until_complete(self, coro_or_future):
         async def main():
-            return await _Awaiter(coro_or_future, self._parent, self)
+            new_task = not asyncio.isfuture(coro_or_future)
+            future = asyncio.ensure_future(coro_or_future, loop=self)
+            if new_task:
+                # An exception is raised if the future didn't complete,
+                # so there
+                # is no need to log the "destroy pending task" message
+                future._log_destroy_pending = False
+            waiter = self._parent.create_future()
+            self._chain_future(waiter, future)
+            ret = await waiter
+            return ret
 
         return self._parent.run_until_complete(main())
 
@@ -128,7 +139,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         timer = _ProxyTimerHandle(self.time() + delay, callback, args, self, context)
         parent_timer = self._wrap_sync(
-            self._parent.call_later, delay, self._run_handle, timer._run
+            self._parent.call_later, delay, self._run_handle, timer
         )
         timer._parent = parent_timer
         if timer._source_traceback:
@@ -140,7 +151,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         timer = _ProxyTimerHandle(when, callback, args, self, context)
         parent_timer = self._wrap_sync(
-            self._parent.call_at, when, self._run_handle, timer._run
+            self._parent.call_at, when, self._run_handle, timer
         )
         timer._parent = parent_timer
         if timer._source_traceback:
@@ -180,7 +191,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def call_soon_threadsafe(self, callback, *args, context=None):
         self._check_closed()
-        handle = asyncio.Handle(callback, args, self, context)
+        handle = _ProxyHandle(callback, args, self, context)
         parent_handle = self._wrap_sync(
             self._parent.call_soon_threadsafe, self._run_handle, handle
         )
@@ -205,7 +216,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.run_in_executor, executor, func, *args
         )
         fut = self.create_future()
-        _chain_future(fut, parent_fut)
+        self._chain_future(fut, parent_fut)
         self._futures.add(fut)
         return fut
 
@@ -512,7 +523,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def _wrap_sync(self, __func, *args, **kwargs):
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
-        assert loop is None or loop is self
         asyncio._set_running_loop(self._parent)
         try:
             return __func(*args, **kwargs)
@@ -522,32 +532,45 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def _wrap_sync_proto(self, __func, *args, **kwargs):
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
-        assert loop is None or loop is self._parent
         asyncio._set_running_loop(self)
         try:
             return __func(*args, **kwargs)
         finally:
             asyncio._set_running_loop(loop)
 
-    def _wrap_async(self, coro):
+    def _wrap_async(self, coro_or_future):
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         assert loop is None or loop is self
-        return _Awaiter(coro, self, self._parent)
+        fut = self.create_future()
+        coro_or_future = asyncio.ensure_future(coro_or_future, loop=self)
+        self._chain_future(fut, coro_or_future)
+        return fut
+
+    def _chain_future(self, target, source):
+        def _call_check_cancel(target):
+            if target.cancelled():
+                source.cancel()
+
+        def _call_set_state(source):
+            if target._loop.is_closed():
+                return
+            if source.cancelled():
+                target.cancel()
+                return
+            exc = source.exception()
+            if exc is not None:
+                target.set_exception(exc)
+            else:
+                res = source.result()
+                target.set_result(res)
+
+        target.add_done_callback(_call_check_cancel)
+        source.add_done_callback(_call_set_state)
 
     def _run_handle(self, handle):
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
-        # loop is parent or deeper predecessor
-        while True:
-            if loop is self._parent:
-                break
-            elif isinstance(loop, LoopProxy):
-                loop = loop._loop
-            else:
-                raise AssertionError(f"Foreign loop {loop!r} is active")
-        # There is no need to tweak parent loop,
-        # self loop has everything already
         asyncio._set_running_loop(self)
         try:
             handle._run()
@@ -558,57 +581,3 @@ class LoopProxy(asyncio.AbstractEventLoop):
             # Break circle reference for handled callbacks
             handle._parent = None
             asyncio._set_running_loop(loop)
-
-
-class _Awaiter:
-    # awaiting of the parent coroutine with implicit switching
-    # the running loop between proxy and parent
-
-    def __init__(self, coro, outer_loop, inner_loop):
-        self._coro = coro
-        self._outer_loop = outer_loop
-        self._inner_loop = inner_loop
-
-    def __await__(self):
-        outer = self._outer_loop
-        inner = self._inner_loop
-        assert asyncio._get_running_loop() is outer
-        asyncio._set_running_loop(inner)
-        try:
-            it = self._coro.__await__()
-        finally:
-            asyncio._set_running_loop(outer)
-        while True:
-            assert asyncio._get_running_loop() is outer
-            asyncio._set_running_loop(inner)
-            try:
-                fut = it.__next__()
-                out_fut = outer.create_future()
-                _chain_future(fut, out_fut)
-                asyncio._set_running_loop(outer)
-                yield out_fut.__await__()
-            except StopIteration as exc:
-                asyncio._set_running_loop(outer)
-                return exc.value
-
-
-def _chain_future(self_fut, parent_fut):
-    def _call_check_cancel(self_fut):
-        if self_fut.cancelled():
-            parent_fut.cancel()
-
-    def _call_set_state(parent_fut):
-        if self_fut._loop.is_closed():
-            return
-        if parent_fut.cancelled():
-            self_fut.cancel()
-            return
-        exc = parent_fut.exception()
-        if exc is not None:
-            self_fut.set_exception(exc)
-        else:
-            res = parent_fut.result()
-            self_fut.set_result(res)
-
-    self_fut.add_done_callback(_call_check_cancel)
-    parent_fut.add_done_callback(_call_set_state)

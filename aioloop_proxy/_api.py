@@ -4,7 +4,7 @@ from ._loop import LoopProxy
 
 
 @contextlib.contextmanager
-def proxy(loop, *, strict=False):
+def proxy(loop, *, strict=None):
     proxy_loop = LoopProxy(loop)
     debug = loop.get_debug()
     exception_handler = loop.get_exception_handler()

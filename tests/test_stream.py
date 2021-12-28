@@ -1,6 +1,8 @@
 import asyncio
 import pathlib
+import secrets
 import socket
+import tempfile
 import unittest
 
 import aioloop_proxy
@@ -472,5 +474,70 @@ class TestTCP(unittest.TestCase):
             await server.wait_closed()
 
             self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+
+class TestUNIX(unittest.TestCase):
+    def setUp(self):
+        self.loop = aioloop_proxy.LoopProxy(_loop)
+
+    def tearDown(self):
+        self.loop.run_until_complete(self.loop.shutdown_default_executor())
+        self.loop.check_resouces(strict=True)
+        self.loop.close()
+
+    async def connect_and_test(self, cli_proto_factory):
+        proto = SrvProto(self)
+        path = (
+            pathlib.Path(tempfile.gettempdir())
+            / f"aioloop-proxy-{secrets.token_hex(4)}.sock"
+        )
+        server = await self.loop.create_unix_server(lambda: proto, path=str(path))
+        addr = server.sockets[0].getsockname()
+        host, port = addr[:2]
+
+        tr, pr = await self.loop.create_unix_connection(cli_proto_factory, path=path)
+        self.assertEqual(repr(tr), repr(tr._orig))
+        self.assertEqual(tr.get_extra_info("peername"), addr)
+        self.assertFalse(tr.is_closing())
+        self.assertTrue(tr.can_write_eof())
+
+        data = await pr.recv()
+        self.assertEqual(b"CONNECTED\n", data)
+        tr.write(b"1\n")
+        data = await pr.recv()
+        self.assertEqual(b"ACK:1\n", data)
+        tr.write(b"2\n")
+        data = await pr.recv()
+        self.assertEqual(b"ACK:2\n", data)
+        tr.writelines([b"da", b"ta\n"])
+        data = await pr.recv()
+        self.assertEqual(b"ACK:data\n", data)
+
+        tr.write(b"STOP")
+        await asyncio.sleep(0)  # wait for eof_received() processing
+
+        tr.close()
+        self.assertTrue(tr.is_closing())
+        await pr.closed
+
+        server.close()
+        await server.wait_closed()
+        return pr
+
+    def test_unix_connect(self):
+        async def f():
+            pr = await self.connect_and_test(lambda: CliProto(self))
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_unix_connect_buffered(self):
+        async def f():
+            pr = await self.connect_and_test(lambda: CliBufferedProto(self))
+            self.assertSetEqual(
+                pr.events, {"MADE", "GET_BUFFER", "BUFFER_UPDATED", "LOST"}
+            )
 
         self.loop.run_until_complete(f())

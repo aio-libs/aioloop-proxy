@@ -66,10 +66,10 @@ class _SubprocessProtocolProxy(_BaseProtocolProxy, asyncio.SubprocessProtocol):
 
 
 _MAP = (
-    (asyncio.SubprocessProtocol, _SubprocessProtocolProxy),
-    (asyncio.DatagramProtocol, _DatagramProtocolProxy),
     (asyncio.BufferedProtocol, _BufferedProtocolProxy),
     (asyncio.Protocol, _ProtocolProxy),
+    (asyncio.SubprocessProtocol, _SubprocessProtocolProxy),
+    (asyncio.DatagramProtocol, _DatagramProtocolProxy),
     (asyncio.BaseProtocol, _BaseProtocolProxy),
 )
 

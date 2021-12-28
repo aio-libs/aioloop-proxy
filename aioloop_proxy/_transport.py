@@ -101,11 +101,11 @@ class _SubprocessTransportProxy(_BaseTransportProxy, asyncio.SubprocessTransport
 
 
 _MAP = (
-    (asyncio.SubprocessTransport, _SubprocessTransportProxy),
-    (asyncio.DatagramTransport, _DatagramTransportProxy),
     (asyncio.Transport, _TransportProxy),
     (asyncio.WriteTransport, _WriteTransportProxy),
     (asyncio.ReadTransport, _ReadTransportProxy),
+    (asyncio.SubprocessTransport, _SubprocessTransportProxy),
+    (asyncio.DatagramTransport, _DatagramTransportProxy),
     (asyncio.BaseTransport, _BaseTransportProxy),
 )
 

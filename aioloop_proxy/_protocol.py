@@ -42,6 +42,10 @@ class _BufferedProtocolProxy(_BaseProtocolProxy, asyncio.BufferedProtocol):
         self._loop._wrap_sync_proto(self.protocol.eof_received)
 
 
+class _UniversalProtocolProxy(_BufferedProtocolProxy, _ProtocolProxy):
+    pass
+
+
 class _DatagramProtocolProxy(_BaseProtocolProxy, asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         self._loop._wrap_sync_proto(self.protocol.datagram_received, data, addr)
@@ -71,6 +75,10 @@ _MAP = (
 
 
 def _proto_proxy(original, loop):
+    if isinstance(original, asyncio.BufferedProtocol) and isinstance(
+        original, asyncio.Protocol
+    ):
+        return _UniversalProtocolProxy(loop, original)
     for orig_type, proxy_type in _MAP:
         if isinstance(original, orig_type):
             return proxy_type(loop, original)

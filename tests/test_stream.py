@@ -28,6 +28,7 @@ class SrvProto(asyncio.Protocol):
         self.transp = None
         self.events = set()
         self.eof = False
+        self.buf = bytearray(0x10000)
 
     def connection_made(self, transport):
         loop = asyncio.get_running_loop()
@@ -37,6 +38,12 @@ class SrvProto(asyncio.Protocol):
         transport.write(b"CONNECTED\n")
         self.events.add("MADE")
 
+    def get_buffer(self, sizehint):
+        return memoryview(self.buf)
+
+    def buffer_updated(self, nbytes):
+        self.data_received(self.buf[:nbytes])
+
     def data_received(self, data):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
@@ -45,6 +52,52 @@ class SrvProto(asyncio.Protocol):
             self.eof = True
             self.transp.write_eof()
         self.events.add("DATA")
+
+    def eof_received(self):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("EOF")
+        if not self.eof:
+            self.transp.write(b"EOF\n")
+
+    def connection_lost(self, exc):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("LOST")
+
+
+class SrvBufferedProto(asyncio.BufferedProtocol):
+    def __init__(self, case):
+        self.case = case
+        self.loop = case.loop
+        self.transp = None
+        self.events = set()
+        self.eof = False
+        self.buf = bytearray(0x10000)
+
+    def connection_made(self, transport):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.transp = transport
+        self.case.assertIsInstance(transport, asyncio.Transport)
+        transport.write(b"CONNECTED\n")
+        self.events.add("MADE")
+
+    def get_buffer(self, sizehint):
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.events.add("GET_BUFFER")
+        return memoryview(self.buf)
+
+    def buffer_updated(self, nbytes):
+        data = self.buf[:nbytes]
+        loop = asyncio.get_running_loop()
+        self.case.assertIs(loop, self.loop)
+        self.transp.write(b"ACK:" + data)
+        if data == b"STOP":
+            self.eof = True
+            self.transp.write_eof()
+        self.events.add("BUFFER_UPDATED")
 
     def eof_received(self):
         loop = asyncio.get_running_loop()
@@ -171,42 +224,57 @@ class TestTCP(unittest.TestCase):
         self.loop.check_resouces(strict=True)
         self.loop.close()
 
-    def test_create_server(self):
-        def g(server):
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            addr = server.sockets[0].getsockname()
-            sock.connect(addr)
-            data = sock.recv(1024)
-            self.assertEqual(b"CONNECTED\n", data)
-            sock.sendall(b"1\n")
-            data = sock.recv(1024)
-            self.assertEqual(b"ACK:1\n", data)
-            sock.sendall(b"2\n")
-            data = sock.recv(1024)
-            self.assertEqual(b"ACK:2\n", data)
-            sock.shutdown(socket.SHUT_WR)
-            data = sock.recv(1024)
-            self.assertEqual(b"EOF\n", data)
-            sock.close()
+    def check_server(self, server):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        addr = server.sockets[0].getsockname()
+        sock.connect(addr)
+        data = sock.recv(1024)
+        self.assertEqual(b"CONNECTED\n", data)
+        sock.sendall(b"1\n")
+        data = sock.recv(1024)
+        self.assertEqual(b"ACK:1\n", data)
+        sock.sendall(b"2\n")
+        data = sock.recv(1024)
+        self.assertEqual(b"ACK:2\n", data)
+        sock.shutdown(socket.SHUT_WR)
+        data = sock.recv(1024)
+        self.assertEqual(b"EOF\n", data)
+        sock.close()
 
+    async def run_server(self, server):
+        self.assertEqual(repr(server), repr(server._orig))
+        self.assertIsInstance(server, asyncio.AbstractServer)
+        self.assertIs(server.get_loop(), self.loop)
+        self.assertIsInstance(server._orig, asyncio.AbstractServer)
+        self.assertFalse(server.is_serving())
+        await server.start_serving()
+        self.assertTrue(server.is_serving())
+
+        await self.loop.run_in_executor(None, self.check_server, server)
+        server.close()
+        await server.wait_closed()
+
+    def test_create_server(self):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
                 lambda: proto, host="localhost", port=0, start_serving=False
             )
-            self.assertEqual(repr(server), repr(server._orig))
-            self.assertIsInstance(server, asyncio.AbstractServer)
-            self.assertIs(server.get_loop(), self.loop)
-            self.assertIsInstance(server._orig, asyncio.AbstractServer)
-            self.assertFalse(server.is_serving())
-            await server.start_serving()
-            self.assertTrue(server.is_serving())
-
-            await self.loop.run_in_executor(None, g, server)
-            server.close()
-            await server.wait_closed()
-
+            await self.run_server(server)
             self.assertSetEqual(proto.events, {"MADE", "DATA", "EOF", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_create_buffered_server(self):
+        async def f():
+            proto = SrvBufferedProto(self)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0, start_serving=False
+            )
+            await self.run_server(server)
+            self.assertSetEqual(
+                proto.events, {"MADE", "GET_BUFFER", "BUFFER_UPDATED", "EOF", "LOST"}
+            )
 
         self.loop.run_until_complete(f())
 

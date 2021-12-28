@@ -226,7 +226,7 @@ class TestTCP(unittest.TestCase):
         self.loop.check_resouces(strict=True)
         self.loop.close()
 
-    def check_server(self, server):
+    def check_server_by_client(self, server):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr = server.sockets[0].getsockname()
         sock.connect(addr)
@@ -252,7 +252,7 @@ class TestTCP(unittest.TestCase):
         await server.start_serving()
         self.assertTrue(server.is_serving())
 
-        await self.loop.run_in_executor(None, self.check_server, server)
+        await self.loop.run_in_executor(None, self.check_server_by_client, server)
         server.close()
         await server.wait_closed()
 
@@ -444,6 +444,58 @@ class TestTCP(unittest.TestCase):
             await server.wait_closed()
 
             self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
+
+        self.loop.run_until_complete(f())
+
+    def test_connect_accepted_socket(self):
+        async def client(host, port):
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            data = await pr.recv()
+            self.assertEqual(b"CONNECTED\n", data)
+            tr.write(b"1\n")
+            data = await pr.recv()
+            self.assertEqual(b"ACK:1\n", data)
+            tr.write(b"2\n")
+            data = await pr.recv()
+            self.assertEqual(b"ACK:2\n", data)
+            tr.writelines([b"da", b"ta\n"])
+            data = await pr.recv()
+            self.assertEqual(b"ACK:data\n", data)
+
+            tr.write(b"STOP")
+            await asyncio.sleep(0)  # wait for eof_received() processing
+
+            tr.close()
+            self.assertTrue(tr.is_closing())
+            await pr.closed
+
+        async def f():
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("localhost", 0))
+            sock.listen(10)
+            addr = sock.getsockname()
+            proto = SrvProto(self)
+            server = await self.loop.create_server(
+                lambda: proto,
+                host="localhost",
+                port=0,
+            )
+            addr = server.sockets[0].getsockname()
+            host, port = addr
+
+            task = self.loop.create_task(client(host, port))
+
+            tr, pr = await self.loop.connect_accepted_socket(lambda: proto, sock)
+            self.assertIs(pr, proto)
+            self.assertIs(tr, proto.transp)
+
+            await task
+
+            server.close()
+            await server.wait_closed()
+            self.assertSetEqual(proto.events, {"MADE", "DATA", "LOST"})
 
         self.loop.run_until_complete(f())
 

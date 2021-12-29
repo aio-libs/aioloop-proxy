@@ -2,8 +2,11 @@ import asyncio
 import pathlib
 import secrets
 import socket
+import ssl
 import tempfile
 import unittest
+
+import trustme
 
 import aioloop_proxy
 
@@ -24,13 +27,15 @@ def tearDownModule():
 
 
 class SrvProto(asyncio.Protocol):
-    def __init__(self, case):
+    def __init__(self, case, ssl_srv=None):
         self.case = case
         self.loop = case.loop
         self.transp = None
         self.events = set()
         self.eof = False
         self.buf = bytearray(0x10000)
+        self.ssl_srv = ssl_srv
+        self.closed = self.loop.create_future()
 
     def connection_made(self, transport):
         loop = asyncio.get_running_loop()
@@ -50,10 +55,21 @@ class SrvProto(asyncio.Protocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.transp.write(b"ACK:" + data)
-        if data == b"STOP":
+        if data == b"STOP\n":
             self.eof = True
             self.transp.write_eof()
+        elif data == b"UPGRADE\n":
+            self.events.add("UPGRADE")
+            self.task = self.loop.create_task(
+                self.loop.start_tls(self.transp, self, self.ssl_srv, server_side=True)
+            )
+            self.task.add_done_callback(self._ssl_upgraded)
         self.events.add("DATA")
+
+    def _ssl_upgraded(self, fut):
+        self.transp = fut.result()
+        self.transp.write(b"UPGRADED\n")
+        self.events.add("UPGRADED")
 
     def eof_received(self):
         loop = asyncio.get_running_loop()
@@ -66,6 +82,9 @@ class SrvProto(asyncio.Protocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.events.add("LOST")
+        self.transp.close()
+        if not self.closed.done():
+            self.closed.set_result(None)
 
 
 class SrvBufferedProto(asyncio.BufferedProtocol):
@@ -96,7 +115,7 @@ class SrvBufferedProto(asyncio.BufferedProtocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.transp.write(b"ACK:" + data)
-        if data == b"STOP":
+        if data == b"STOP\n":
             self.eof = True
             self.transp.write_eof()
         self.events.add("BUFFER_UPDATED")
@@ -112,6 +131,7 @@ class SrvBufferedProto(asyncio.BufferedProtocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.events.add("LOST")
+        self.transp.close()
 
 
 class CliProto(asyncio.Protocol):
@@ -148,6 +168,7 @@ class CliProto(asyncio.Protocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.events.add("LOST")
+        self.transp.close()
         self.closed.set_result(None)
 
     async def recv(self):
@@ -204,6 +225,7 @@ class CliBufferedProto(asyncio.BufferedProtocol):
         loop = asyncio.get_running_loop()
         self.case.assertIs(loop, self.loop)
         self.events.add("LOST")
+        self.transp.close()
         self.closed.set_result(None)
 
     async def recv(self):
@@ -333,7 +355,7 @@ class TestTCP(unittest.TestCase):
         data = await pr.recv()
         self.assertEqual(b"ACK:data\n", data)
 
-        tr.write(b"STOP")
+        tr.write(b"STOP\n")
         await asyncio.sleep(0)  # wait for eof_received() processing
 
         tr.close()
@@ -464,7 +486,7 @@ class TestTCP(unittest.TestCase):
             data = await pr.recv()
             self.assertEqual(b"ACK:data\n", data)
 
-            tr.write(b"STOP")
+            tr.write(b"STOP\n")
             await asyncio.sleep(0)  # wait for eof_received() processing
 
             tr.close()
@@ -529,6 +551,65 @@ class TestTCP(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def make_certs(self):
+        CA = trustme.CA()
+        cert = CA.issue_cert(
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        )
+        ssl_srv = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        cert.configure_cert(ssl_srv)
+        ssl_cli = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+        CA.configure_trust(ssl_cli)
+        return ssl_srv, ssl_cli
+
+    def test_start_tls(self):
+        ssl_srv, ssl_cli = self.make_certs()
+
+        async def f():
+            proto = SrvProto(self, ssl_srv)
+            server = await self.loop.create_server(
+                lambda: proto, host="localhost", port=0
+            )
+            addr = server.sockets[0].getsockname()
+            host, port = addr[:2]
+
+            tr, pr = await self.loop.create_connection(
+                lambda: CliProto(self), host, port
+            )
+            data = await pr.recv()
+            self.assertEqual(data, b"CONNECTED\n")
+            tr.write(b"1\n")
+            data = await pr.recv()
+            self.assertEqual(data, b"ACK:1\n")
+
+            tr.write(b"UPGRADE\n")
+            data = await pr.recv()
+            self.assertEqual(data, b"ACK:UPGRADE\n")
+            tr2 = await self.loop.start_tls(tr, pr, ssl_cli)
+            data = await pr.recv()
+            self.assertEqual(data, b"UPGRADED\n")
+
+            tr2.write(b"2\n")
+            data = await pr.recv()
+            self.assertEqual(data, b"ACK:2\n")
+            tr2.close()
+            self.assertTrue(tr2.is_closing())
+            await pr.closed
+
+            await proto.closed
+
+            server.close()
+            await server.wait_closed()
+
+            self.assertSetEqual(pr.events, {"MADE", "DATA", "EOF", "LOST"})
+            self.assertSetEqual(
+                proto.events, {"MADE", "DATA", "UPGRADE", "UPGRADED", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
 
 class TestUNIX(unittest.TestCase):
     def setUp(self):
@@ -567,7 +648,7 @@ class TestUNIX(unittest.TestCase):
         data = await pr.recv()
         self.assertEqual(b"ACK:data\n", data)
 
-        tr.write(b"STOP")
+        tr.write(b"STOP\n")
         await asyncio.sleep(0)  # wait for eof_received() processing
 
         tr.close()

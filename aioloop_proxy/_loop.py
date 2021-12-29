@@ -7,6 +7,7 @@ import weakref
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
+from ._transport import _make_transport_proxy
 
 
 class LoopProxy(asyncio.AbstractEventLoop):
@@ -271,10 +272,11 @@ class LoopProxy(asyncio.AbstractEventLoop):
     async def start_tls(self, transport, protocol, sslcontext, **kwargs):
         self._check_closed()
         proto = _proto_proxy(protocol, self)
-        await self._wrap_async(
-            self._parent.start_tls(proto, transport._parent, sslcontext, **kwargs)
+        tr = await self._wrap_async(
+            self._parent.start_tls(transport._orig, proto, sslcontext, **kwargs)
         )
-        transp = proto.transport
+        transp = _make_transport_proxy(tr, self)
+        proto.transport = transp
         self._transports.add(transp)
         return transp
 

@@ -1,10 +1,10 @@
 import asyncio
 
-from ._transport import _make_transport_proxy
+from ._transport import _DatagramTransportProxy, _make_transport_proxy
 
 
 class _BaseProtocolProxy(asyncio.BaseProtocol):
-    def __init__(self, loop, protocol):
+    def __init__(self, protocol, loop):
         self._loop = loop
         self.protocol = protocol
         self.transport = None
@@ -47,6 +47,12 @@ class _UniversalProtocolProxy(_BufferedProtocolProxy, _ProtocolProxy):
 
 
 class _DatagramProtocolProxy(_BaseProtocolProxy, asyncio.DatagramProtocol):
+    def connection_made(self, transport):
+        # asyncio has wrong DatagramTransport inheritance, auto-selection by
+        # original type doesn't work.
+        self.transport = _DatagramTransportProxy(transport, self._loop)
+        self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)
+
     def datagram_received(self, data, addr):
         self._loop._wrap_sync_proto(self.protocol.datagram_received, data, addr)
 
@@ -78,10 +84,10 @@ def _proto_proxy(original, loop):
     if isinstance(original, asyncio.BufferedProtocol) and isinstance(
         original, asyncio.Protocol
     ):
-        return _UniversalProtocolProxy(loop, original)
+        return _UniversalProtocolProxy(original, loop)
     for orig_type, proxy_type in _MAP:
         if isinstance(original, orig_type):
-            return proxy_type(loop, original)
+            return proxy_type(original, loop)
     else:
         raise RuntimeError(f"Cannot find protocol proxy for {original!r}")
 

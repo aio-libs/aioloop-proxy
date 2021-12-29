@@ -2,7 +2,7 @@ import asyncio
 
 
 class _BaseTransportProxy(asyncio.BaseTransport):
-    def __init__(self, loop, original):
+    def __init__(self, original, loop):
         self._loop = loop
         self._orig = original
 
@@ -113,6 +113,6 @@ _MAP = (
 def _make_transport_proxy(original, loop):
     for orig_type, proxy_type in _MAP:
         if isinstance(original, orig_type):
-            return proxy_type(loop, original)
+            return proxy_type(original, loop)
     else:
         raise RuntimeError(f"Cannot find transport proxy for {original!r}")

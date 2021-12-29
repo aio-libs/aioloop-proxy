@@ -282,7 +282,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0, start_serving=False
+                lambda: proto, host="127.0.0.1", port=0, start_serving=False
             )
             await self.run_server(server)
             self.assertSetEqual(proto.events, {"MADE", "DATA", "EOF", "LOST"})
@@ -293,7 +293,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvBufferedProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0, start_serving=False
+                lambda: proto, host="127.0.0.1", port=0, start_serving=False
             )
             await self.run_server(server)
             self.assertSetEqual(
@@ -314,7 +314,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0
+                lambda: proto, host="127.0.0.1", port=0
             )
 
             server_task = self.loop.create_task(server.serve_forever())
@@ -331,7 +331,7 @@ class TestTCP(unittest.TestCase):
     async def connect_and_test(self, cli_proto_factory):
         proto = SrvProto(self)
         server = await self.loop.create_server(
-            lambda: proto, host="localhost", port=0, start_serving=False
+            lambda: proto, host="127.0.0.1", port=0, start_serving=False
         )
         await server.start_serving()
         addr = server.sockets[0].getsockname()
@@ -386,7 +386,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0, start_serving=False
+                lambda: proto, host="127.0.0.1", port=0, start_serving=False
             )
             await server.start_serving()
             addr = server.sockets[0].getsockname()
@@ -410,7 +410,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0, start_serving=False
+                lambda: proto, host="127.0.0.1", port=0, start_serving=False
             )
             await server.start_serving()
             addr = server.sockets[0].getsockname()
@@ -439,7 +439,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0, start_serving=False
+                lambda: proto, host="127.0.0.1", port=0, start_serving=False
             )
             await server.start_serving()
             addr = server.sockets[0].getsockname()
@@ -495,13 +495,13 @@ class TestTCP(unittest.TestCase):
 
         async def f():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(("localhost", 0))
+            sock.bind(("127.0.0.1", 0))
             sock.listen(10)
             addr = sock.getsockname()
             proto = SrvProto(self)
             server = await self.loop.create_server(
                 lambda: proto,
-                host="localhost",
+                host="127.0.0.1",
                 port=0,
             )
             addr = server.sockets[0].getsockname()
@@ -525,7 +525,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0
+                lambda: proto, host="127.0.0.1", port=0
             )
             addr = server.sockets[0].getsockname()
             host, port = addr[:2]
@@ -554,7 +554,6 @@ class TestTCP(unittest.TestCase):
     def make_certs(self):
         CA = trustme.CA()
         cert = CA.issue_cert(
-            "localhost",
             "127.0.0.1",
             "::1",
         )
@@ -570,7 +569,7 @@ class TestTCP(unittest.TestCase):
         async def f():
             proto = SrvProto(self, ssl_srv)
             server = await self.loop.create_server(
-                lambda: proto, host="localhost", port=0
+                lambda: proto, host="127.0.0.1", port=0
             )
             addr = server.sockets[0].getsockname()
             host, port = addr[:2]

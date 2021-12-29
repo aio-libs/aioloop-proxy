@@ -333,23 +333,25 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     async def connect_read_pipe(self, protocol_factory, pipe):
         self._check_closed()
-        transp, proto = await self._wrap_async(
+        _, proto = await self._wrap_async(
             self._parent.connect_read_pipe(
                 _proto_proxy_factory(protocol_factory, self), pipe
             )
         )
+        transp = proto.transport
         self._transports.add(transp)
-        return transp, proto
+        return transp, proto.protocol
 
     async def connect_write_pipe(self, protocol_factory, pipe):
         self._check_closed()
-        transp, proto = await self._wrap_async(
+        _, proto = await self._wrap_async(
             self._parent.connect_write_pipe(
                 _proto_proxy_factory(protocol_factory, self), pipe
             )
         )
+        transp = proto.transport
         self._transports.add(transp)
-        return transp, proto
+        return transp, proto.protocol
 
     async def subprocess_shell(self, protocol_factory, cmd, **kwargs):
         self._check_closed()

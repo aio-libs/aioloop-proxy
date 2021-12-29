@@ -92,6 +92,23 @@ class TestDatagram(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_error(self):
+        async def f():
+            tr1, pr1 = await self.loop.create_datagram_endpoint(
+                lambda: DatagramProto(self),
+                family=socket.AF_INET,
+                local_addr=("127.0.0.1", 0),
+            )
+
+            tr1.sendto(b"DATA", ("127.0.0.0", 1))
+            with self.assertRaises(PermissionError):
+                await pr1.recv()
+
+            tr1.close()
+            await pr1.closed
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

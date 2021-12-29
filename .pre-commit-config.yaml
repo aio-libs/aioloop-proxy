@@ -39,7 +39,6 @@ repos:
   - id: trailing-whitespace
     exclude: "[.]ref$"
   - id: check-symlinks
-  - id: debug-statements
   - id: file-contents-sorter
     files: |
       (?x)^(

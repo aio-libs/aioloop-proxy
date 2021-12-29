@@ -355,23 +355,25 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     async def subprocess_shell(self, protocol_factory, cmd, **kwargs):
         self._check_closed()
-        transp, proto = await self._wrap_async(
+        _, proto = await self._wrap_async(
             self._parent.subprocess_shell(
                 _proto_proxy_factory(protocol_factory, self), cmd, **kwargs
             )
         )
+        transp = proto.transport
         self._transports.add(transp)
-        return transp, proto
+        return transp, proto.protocol
 
     async def subprocess_exec(self, protocol_factory, *args, **kwargs):
         self._check_closed()
-        transp, proto = await self._wrap_async(
+        _, proto = await self._wrap_async(
             self._parent.subprocess_exec(
                 _proto_proxy_factory(protocol_factory, self), *args, **kwargs
             )
         )
+        transp = proto.transport
         self._transports.add(transp)
-        return transp, proto
+        return transp, proto.protocol
 
     # Ready-based callback registration methods.
     # The add_*() methods return None.

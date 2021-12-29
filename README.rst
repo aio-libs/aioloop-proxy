@@ -37,7 +37,8 @@ The usage is::
    import aioloop_proxy
 
    loop = asyncio.new_event_loop()
+   server_addr = loop.run_until_complete(setup_and_run_test_server())
    ...
 
    with aioloop_proxy(loop, strict=True) as loop_proxy:
-      loop_proxy.run_until_complete(test_func())
+      loop_proxy.run_until_complete(test_func(server_addr))

@@ -109,6 +109,19 @@ class TestDatagram(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_abort(self):
+        async def f():
+            tr1, pr1 = await self.loop.create_datagram_endpoint(
+                lambda: DatagramProto(self),
+                family=socket.AF_INET,
+                local_addr=("127.0.0.1", 0),
+            )
+
+            tr1.abort()
+            await pr1.closed
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

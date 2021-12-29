@@ -50,6 +50,7 @@ class _DatagramProtocolProxy(_BaseProtocolProxy, asyncio.DatagramProtocol):
     def connection_made(self, transport):
         # asyncio has wrong DatagramTransport inheritance, auto-selection by
         # original type doesn't work.
+        # See https://bugs.python.org/issue46194
         self.transport = _DatagramTransportProxy(transport, self._loop)
         self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)
 

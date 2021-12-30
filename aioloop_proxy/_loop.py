@@ -30,19 +30,19 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._default_executor = None
         self._executor_shutdown_called = False
 
-        # shared state, need to restore parent loop
-        self._debug = parent.get_debug()
-        self._exception_handler = parent.get_exception_handler()
-        self._slow_callback_duration = parent.slow_callback_duration
+    def __repr__(self):
+        running = self.is_running()
+        closed = self.is_closed()
+        debug = self.get_debug()
+        return f"<LoopProxy running={running} closed={closed} debug={debug}>"
 
     # properties
     @property
     def slow_callback_duration(self):
-        return self._slow_callback_duration
+        return self._parent.slow_callback_duration
 
     @slow_callback_duration.setter
     def slow_callback_duration(self, value):
-        self._slow_callback_duration = value
         self._parent.slow_callback_duration = value
 
     # Proxy-specific API
@@ -183,8 +183,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             if name is not None:
                 try:
                     set_name = task.set_name
-                except AttributeError:
-                    pass
+                except AttributeError:  # pragma: no cover
+                    pass  # just in case of very obsolete custom task class
                 else:
                     set_name(name)
         self._tasks.add(task)
@@ -482,25 +482,23 @@ class LoopProxy(asyncio.AbstractEventLoop):
     # Error handlers.
 
     def get_exception_handler(self):
-        return self._exception_handler
+        return self._parent.get_exception_handler()
 
     def set_exception_handler(self, handler):
-        self._parent.set_exception_handler(handler)
-        self._exception_handler = handler
+        return self._parent.set_exception_handler(handler)
 
     def default_exception_handler(self, context):
-        self._parent.default_exception_handler(context)
+        return self._parent.default_exception_handler(context)
 
     def call_exception_handler(self, context):
-        self._parent.call_exception_handler(context)
+        return self._parent.call_exception_handler(context)
 
     # Debug flag management.
 
     def get_debug(self):
-        return self._debug
+        return self._parent.get_debug()
 
     def set_debug(self, enabled):
-        self._debug = enabled
         self._parent.set_debug(enabled)
 
     # Inherited

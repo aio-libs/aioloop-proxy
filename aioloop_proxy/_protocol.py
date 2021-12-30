@@ -9,6 +9,9 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
         self.protocol = protocol
         self.transport = None
 
+    def __repr__(self):
+        return self._loop._wrap_sync(repr, self.protocol)
+
     def connection_made(self, transport):
         self.transport = _make_transport_proxy(transport, self._loop)
         self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)

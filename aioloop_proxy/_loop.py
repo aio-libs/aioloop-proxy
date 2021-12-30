@@ -394,14 +394,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def remove_reader(self, fd):
         if self.is_closed():
             return False
-        parent_ret = self._wrap_sync(self._parent.remove_reader, fd)
+        self._wrap_sync(self._parent.remove_reader, fd)
         handle = self._readers.pop(fd, None)
         if handle is not None:
             handle.cancel()
-            assert parent_ret, f"Parent loop already removed a reader for {fd}"
             return True
         else:
-            assert parent_ret, f"Parent loop has no reader for {fd}"
             return False
 
     def add_writer(self, fd, callback, *args):
@@ -418,14 +416,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def remove_writer(self, fd):
         if self.is_closed():
             return False
-        parent_ret = self._wrap_sync(self._parent.remove_writer, fd)
+        self._wrap_sync(self._parent.remove_writer, fd)
         handle = self._writers.pop(fd, None)
         if handle is not None:
             handle.cancel()
-            assert parent_ret, f"Parent loop already removed a writer for {fd}"
             return True
         else:
-            assert parent_ret, f"Parent loop has no writer for {fd}"
             return False
 
     # Completion based I/O methods returning Futures.

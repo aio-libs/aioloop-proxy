@@ -159,6 +159,25 @@ class TestLoop(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_run_custom_default_executor(self):
+        async def f():
+            def g():
+                return "done"
+
+            ret = await self.loop.run_in_executor(None, g)
+            self.assertEqual(ret, "done")
+
+        pool = ThreadPoolExecutor()
+        self.loop.set_default_executor(pool)
+        self.assertIs(pool, self.loop._default_executor)
+        self.loop.run_until_complete(f())
+
+    def test_invalid_custom_default_executor(self):
+        with self.assertRaisesRegex(
+            TypeError, "executor must be ThreadPoolExecutor instance"
+        ):
+            self.loop.set_default_executor(123)
+
 
 if __name__ == "__main__":
     unittest.main()

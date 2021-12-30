@@ -25,9 +25,10 @@ class TestTransport(unittest.TestCase):
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
     def tearDown(self):
-        self.loop.run_until_complete(self.loop.shutdown_default_executor())
+        if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            self.loop.close()
         self.loop.check_resouces(strict=True)
-        self.loop.close()
 
     def test_add_reader(self):
         async def f():
@@ -66,6 +67,16 @@ class TestTransport(unittest.TestCase):
             os.close(wpipe)
 
         self.loop.run_until_complete(f())
+
+    def test_remove_reader_closed_loop(self):
+        rpipe, wpipe = os.pipe()
+        os.set_blocking(rpipe, False)
+
+        self.loop.close()
+        self.assertFalse(self.loop.remove_reader(rpipe))
+
+        os.close(rpipe)
+        os.close(wpipe)
 
     def test_add_writer(self):
         async def f():
@@ -113,6 +124,16 @@ class TestTransport(unittest.TestCase):
             os.close(wpipe)
 
         self.loop.run_until_complete(f())
+
+    def test_remove_writer_closed_loop(self):
+        rpipe, wpipe = os.pipe()
+        os.set_blocking(wpipe, False)
+
+        self.loop.close()
+        self.assertFalse(self.loop.remove_writer(wpipe))
+
+        os.close(rpipe)
+        os.close(wpipe)
 
 
 if __name__ == "__main__":

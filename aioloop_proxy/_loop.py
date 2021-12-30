@@ -387,8 +387,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.add_reader, fd, self._run_handle, handle
         )
         handle._parent = parent_handle
-        if handle._source_traceback:
-            del handle._source_traceback[-1]
         self._readers[fd] = handle
 
     def remove_reader(self, fd):
@@ -409,8 +407,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.add_writer, fd, self._run_handle, handle
         )
         handle._parent = parent_handle
-        if handle._source_traceback:
-            del handle._source_traceback[-1]
         self._writers[fd] = handle
 
     def remove_writer(self, fd):

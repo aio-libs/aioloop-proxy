@@ -42,3 +42,7 @@ The usage is::
 
    with aioloop_proxy(loop, strict=True) as loop_proxy:
       loop_proxy.run_until_complete(test_func(server_addr))
+
+
+Sure, each test system (``unittest``, ``pytest``, name it) should not run the code
+snippet above as-is but incorporate it as a dedicates test-case class or plugin.

@@ -1,6 +1,7 @@
 import asyncio
 import pathlib
 import shlex
+import signal
 import sys
 import unittest
 
@@ -37,14 +38,11 @@ class Proto(asyncio.SubprocessProtocol):
         self.events.add("MADE")
 
     def pipe_data_received(self, fd, data):
-        self._recv.set_result((fd, data))
+        if not self._recv.done():
+            self._recv.set_result((fd, data))
         self.events.add("PIPE-DATA")
 
     def pipe_connection_lost(self, fd, exc):
-        if exc is None:
-            self._recv.set_result((fd, b""))
-        else:
-            self._recv.set_exception(exc)
         self.events.add("PIPE-LOST")
 
     def process_exited(self):
@@ -77,7 +75,7 @@ class TestSubprocess(unittest.TestCase):
 
     def exec_cmd(self, *args):
         script = pathlib.Path(__file__).parent / "subproc.py"
-        return [sys.executable, script] + list(args)
+        return [sys.executable, str(script)] + list(args)
 
     def shell_cmd(self, *args):
         return " ".join(shlex.quote(part) for part in self.exec_cmd(*args))
@@ -89,19 +87,161 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(fd, b"READY\n")
+            self.assertEqual(data, b"READY\n")
 
-            tr.get_pipe_transport(1).write(b"DATA\n")
+            tr.get_pipe_transport(0).write(b"DATA\n")
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
             self.assertEqual(data, b"ACK:DATA\n")
 
-            tr.get_pipe_transport(1).write(b"EXIT:0\n")
+            tr.get_pipe_transport(0).write(b"EXIT:0\n")
 
-            await tr.exited
+            await pr.exited
             self.assertEqual(tr.get_returncode(), 0)
             tr.close()
-            await tr.closed
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_shell(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_shell(
+                lambda: Proto(self), self.shell_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.get_pipe_transport(0).write(b"DATA\n")
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"ACK:DATA\n")
+
+            tr.get_pipe_transport(0).write(b"EXIT:0\n")
+
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), 0)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_get_pid(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.get_pipe_transport(0).write(b"PID\n")
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            child_pid = tr.get_pid()
+            self.assertEqual(data, f"PID:{child_pid}\n".encode("ascii"))
+
+            tr.get_pipe_transport(0).write(b"EXIT:0\n")
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), 0)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_get_returncode(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.get_pipe_transport(0).write(b"EXIT:1\n")
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), 1)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_send_signal(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.send_signal(signal.SIGINT)
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), -signal.SIGINT)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_terminate(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.terminate()
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), -signal.SIGTERM)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
+    def test_kill(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd()
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
+            self.assertEqual(data, b"READY\n")
+
+            tr.kill()
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), -signal.SIGKILL)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
 
         self.loop.run_until_complete(f())
 

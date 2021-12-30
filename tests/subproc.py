@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 PARSER = argparse.ArgumentParser(description="Subprocess test helper")
@@ -15,8 +16,11 @@ def main(argv):
     out = sys.stderr if args.stderr else sys.stdout
     print("READY", file=out, flush=True)
     for line in sys.stdin:
+        line = line.strip()
         if line.startswith("EXIT:"):
             return int(line.split(":")[1])
+        if line.startswith("PID"):
+            print("PID:" + str(os.getpid()), file=out, flush=True)
         else:
             print("ACK:" + line, file=out, flush=True)
 

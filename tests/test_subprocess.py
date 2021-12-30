@@ -134,6 +134,33 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_stderr(self):
+        async def f():
+            tr, pr = await self.loop.subprocess_exec(
+                lambda: Proto(self), *self.exec_cmd("--stderr")
+            )
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 2)
+            self.assertEqual(data, b"READY\n")
+
+            tr.get_pipe_transport(0).write(b"DATA\n")
+            fd, data = await pr.recv()
+            self.assertEqual(fd, 2)
+            self.assertEqual(data, b"ACK:DATA\n")
+
+            tr.get_pipe_transport(0).write(b"EXIT:0\n")
+
+            await pr.exited
+            self.assertEqual(tr.get_returncode(), 0)
+            tr.close()
+            await pr.closed
+
+            self.assertSetEqual(
+                pr.events, {"MADE", "PIPE-DATA", "EXIT", "PIPE-LOST", "LOST"}
+            )
+
+        self.loop.run_until_complete(f())
+
     def test_get_pid(self):
         async def f():
             tr, pr = await self.loop.subprocess_exec(

@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
 import aioloop_proxy
@@ -140,6 +141,23 @@ class TestLoop(unittest.TestCase):
         self.loop.call_soon(cb)
         self.loop.run_forever()
         self.assertTrue(called)
+
+    def test_run_until_complete_fut(self):
+        fut = self.loop.create_future()
+        fut.set_result("done")
+        ret = self.loop.run_until_complete(fut)
+        self.assertEqual(ret, "done")
+
+    def test_run_custom_executor(self):
+        async def f():
+            def g():
+                return "done"
+
+            with ThreadPoolExecutor() as pool:
+                ret = await self.loop.run_in_executor(pool, g)
+            self.assertEqual(ret, "done")
+
+        self.loop.run_until_complete(f())
 
 
 if __name__ == "__main__":

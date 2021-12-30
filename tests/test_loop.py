@@ -30,6 +30,14 @@ class TestLoop(unittest.TestCase):
             self.loop.close()
         self.loop.check_resouces(strict=True)
 
+    def test_repr(self):
+        debug = self.loop.get_debug()
+        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+            self.assertEqual(
+                repr(proxy),
+                f"<LoopProxy running=False closed=False debug={debug}>",
+            )
+
     def test_slow_callback_duration(self):
         value = self.loop.slow_callback_duration
         with aioloop_proxy.proxy(self.loop, strict=True) as proxy:

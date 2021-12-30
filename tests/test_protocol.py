@@ -30,6 +30,11 @@ class TestProtocol(unittest.TestCase):
         self.loop.check_resouces(strict=True)
         self.loop.close()
 
+    def test_repr(self):
+        proto = Mock(spec=asyncio.Protocol)
+        proxy = _proto_proxy(proto, self.loop)
+        self.assertEqual(repr(proto), repr(proxy))
+
     def test__make_proto_proxy_unknown(self):
         with self.assertRaisesRegex(RuntimeError, "Cannot find protocol proxy"):
             _proto_proxy(object(), self.loop)

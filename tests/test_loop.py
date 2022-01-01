@@ -257,9 +257,34 @@ class TestLoop(unittest.TestCase):
 
             self.loop.add_signal_handler(signal.SIGINT, cb)
             os.kill(os.getpid(), signal.SIGINT)
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.01)  # served by outer loop
+
             self.assertTrue(called)
             self.assertTrue(self.loop.remove_signal_handler(signal.SIGINT))
+
+        self.loop.run_until_complete(f())
+
+    def test_chain_future_cancel_targt(self):
+        async def f():
+            src = self.loop.create_future()
+            tgt = self.loop.create_future()
+
+            self.loop._chain_future(tgt, src)
+            tgt.cancel()
+            await asyncio.sleep(0)
+            self.assertTrue(src.cancelled())
+
+        self.loop.run_until_complete(f())
+
+    def test_chain_future_cancel_source(self):
+        async def f():
+            src = self.loop.create_future()
+            tgt = self.loop.create_future()
+
+            self.loop._chain_future(tgt, src)
+            src.cancel()
+            await asyncio.sleep(0)
+            self.assertTrue(tgt.cancelled())
 
         self.loop.run_until_complete(f())
 

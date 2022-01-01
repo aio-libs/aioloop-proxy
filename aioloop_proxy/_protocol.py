@@ -10,39 +10,39 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
         self.transport = None
 
     def __repr__(self):
-        return self._loop._wrap_sync(repr, self.protocol)
+        return repr(self.protocol)
 
     def connection_made(self, transport):
         self.transport = _make_transport_proxy(transport, self._loop)
-        self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)
+        self._loop._wrap_cb(self.protocol.connection_made, self.transport)
 
     def connection_lost(self, exc):
-        self._loop._wrap_sync_proto(self.protocol.connection_lost, exc)
+        self._loop._wrap_cb(self.protocol.connection_lost, exc)
 
     def pause_writing(self):
-        self._loop._wrap_sync_proto(self.protocol.pause_writing)
+        self._loop._wrap_cb(self.protocol.pause_writing)
 
     def resume_writing(self):
-        self._loop._wrap_sync_proto(self.protocol.resume_writing)
+        self._loop._wrap_cb(self.protocol.resume_writing)
 
 
 class _ProtocolProxy(_BaseProtocolProxy, asyncio.Protocol):
     def data_received(self, data):
-        self._loop._wrap_sync_proto(self.protocol.data_received, data)
+        self._loop._wrap_cb(self.protocol.data_received, data)
 
     def eof_received(self):
-        self._loop._wrap_sync_proto(self.protocol.eof_received)
+        self._loop._wrap_cb(self.protocol.eof_received)
 
 
 class _BufferedProtocolProxy(_BaseProtocolProxy, asyncio.BufferedProtocol):
     def get_buffer(self, sizehint):
-        return self._loop._wrap_sync_proto(self.protocol.get_buffer, sizehint)
+        return self._loop._wrap_cb(self.protocol.get_buffer, sizehint)
 
     def buffer_updated(self, nbytes):
-        self._loop._wrap_sync_proto(self.protocol.buffer_updated, nbytes)
+        self._loop._wrap_cb(self.protocol.buffer_updated, nbytes)
 
     def eof_received(self):
-        self._loop._wrap_sync_proto(self.protocol.eof_received)
+        self._loop._wrap_cb(self.protocol.eof_received)
 
 
 class _UniversalProtocolProxy(_BufferedProtocolProxy, _ProtocolProxy):
@@ -55,24 +55,24 @@ class _DatagramProtocolProxy(_BaseProtocolProxy, asyncio.DatagramProtocol):
         # original type doesn't work.
         # See https://bugs.python.org/issue46194
         self.transport = _DatagramTransportProxy(transport, self._loop)
-        self._loop._wrap_sync_proto(self.protocol.connection_made, self.transport)
+        self._loop._wrap_cb(self.protocol.connection_made, self.transport)
 
     def datagram_received(self, data, addr):
-        self._loop._wrap_sync_proto(self.protocol.datagram_received, data, addr)
+        self._loop._wrap_cb(self.protocol.datagram_received, data, addr)
 
     def error_received(self, exc):
-        self._loop._wrap_sync_proto(self.protocol.error_received, exc)
+        self._loop._wrap_cb(self.protocol.error_received, exc)
 
 
 class _SubprocessProtocolProxy(_BaseProtocolProxy, asyncio.SubprocessProtocol):
     def pipe_data_received(self, fd, data):
-        self._loop._wrap_sync_proto(self.protocol.pipe_data_received, fd, data)
+        self._loop._wrap_cb(self.protocol.pipe_data_received, fd, data)
 
     def pipe_connection_lost(self, fd, exc):
-        self._loop._wrap_sync_proto(self.protocol.pipe_connection_lost, fd, exc)
+        self._loop._wrap_cb(self.protocol.pipe_connection_lost, fd, exc)
 
     def process_exited(self):
-        self._loop._wrap_sync_proto(self.protocol.process_exited)
+        self._loop._wrap_cb(self.protocol.process_exited)
 
 
 _MAP = (

@@ -128,9 +128,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_soon(self, callback, *args, context=None):
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
-        parent_handle = self._wrap_sync(
-            self._parent.call_soon, _HandleCaller(self, handle)
-        )
+        parent_handle = self._parent.call_soon(_HandleCaller(self, handle))
         handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
@@ -139,9 +137,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_later(self, delay, callback, *args, context=None):
         self._check_closed()
         timer = _ProxyTimerHandle(self.time() + delay, callback, args, self, context)
-        parent_timer = self._wrap_sync(
-            self._parent.call_later, delay, self._wrap_sync_proto, timer._run
-        )
+        parent_timer = self._parent.call_later(delay, _HandleCaller(self, timer))
         timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
@@ -150,9 +146,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_at(self, when, callback, *args, context=None):
         self._check_closed()
         timer = _ProxyTimerHandle(when, callback, args, self, context)
-        parent_timer = self._wrap_sync(
-            self._parent.call_at, when, self._wrap_sync_proto, timer._run
-        )
+        parent_timer = self._parent.call_at(when, _HandleCaller(self, timer))
         timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
@@ -191,9 +185,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_soon_threadsafe(self, callback, *args, context=None):
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
-        parent_handle = self._wrap_sync(
-            self._parent.call_soon_threadsafe, _HandleCaller(self, handle)
-        )
+        parent_handle = self._parent.call_soon_threadsafe(_HandleCaller(self, handle))
         handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
@@ -210,9 +202,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
                     thread_name_prefix="aioloop-proxy"
                 )
                 self._default_executor = executor
-        parent_fut = self._wrap_sync(
-            self._parent.run_in_executor, executor, func, *args
-        )
+        parent_fut = self._parent.run_in_executor(executor, func, *args)
         fut = self.create_future()
         self._chain_future(fut, parent_fut)
         self._futures.add(fut)
@@ -378,13 +368,13 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def add_reader(self, fd, callback, *args):
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
-        self._wrap_sync(self._parent.add_reader, fd, self._wrap_sync_proto, handle._run)
+        self._parent.add_reader(fd, self._wrap_cb, handle._run)
         self._readers[fd] = handle
 
     def remove_reader(self, fd):
         if self.is_closed():
             return False
-        self._wrap_sync(self._parent.remove_reader, fd)
+        self._parent.remove_reader(fd)
         handle = self._readers.pop(fd, None)
         if handle is not None:
             handle.cancel()
@@ -395,13 +385,13 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def add_writer(self, fd, callback, *args):
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
-        self._wrap_sync(self._parent.add_writer, fd, self._wrap_sync_proto, handle._run)
+        self._parent.add_writer(fd, self._wrap_cb, handle._run)
         self._writers[fd] = handle
 
     def remove_writer(self, fd):
         if self.is_closed():
             return False
-        self._wrap_sync(self._parent.remove_writer, fd)
+        self._parent.remove_writer(fd)
         handle = self._writers.pop(fd, None)
         if handle is not None:
             handle.cancel()
@@ -442,7 +432,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def add_signal_handler(self, sig, callback, *args):
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
-        self._parent.add_signal_handler(sig, self._wrap_sync_proto, handle._run)
+        self._parent.add_signal_handler(sig, self._wrap_cb, handle._run)
         self._signals[sig] = handle
 
     def remove_signal_handler(self, sig):
@@ -499,16 +489,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         if self._executor_shutdown_called:
             raise RuntimeError("Executor shutdown has been called")
 
-    def _wrap_sync(self, __func, *args, **kwargs):
-        # Private API calls are OK here
-        loop = asyncio._get_running_loop()
-        asyncio._set_running_loop(self._parent)
-        try:
-            return __func(*args, **kwargs)
-        finally:
-            asyncio._set_running_loop(loop)
-
-    def _wrap_sync_proto(self, __func, *args, **kwargs):
+    def _wrap_cb(self, __func, *args, **kwargs):
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         asyncio._set_running_loop(self)

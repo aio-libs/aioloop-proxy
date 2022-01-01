@@ -44,4 +44,4 @@ class _HandleCaller:
         handle = self.handle
         self.handle = None  # drop circular reference
         self.loop_proxy._handles.discard(handle)
-        self.loop_proxy._wrap_sync_proto(handle._run)
+        self.loop_proxy._wrap_cb(handle._run)

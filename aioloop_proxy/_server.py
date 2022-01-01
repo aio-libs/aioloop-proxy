@@ -7,20 +7,20 @@ class _ServerProxy(asyncio.AbstractServer):
         self._loop = loop
 
     def __repr__(self):
-        return self._loop._wrap_sync(repr, self._orig)
+        return repr(self._orig)
 
     def get_loop(self):
         return self._loop
 
     def is_serving(self):
-        return self._loop._wrap_sync(self._orig.is_serving)
+        return self._orig.is_serving()
 
     @property
     def sockets(self):
-        return self._loop._wrap_sync(getattr, self._orig, "sockets")
+        return self._orig.sockets
 
     def close(self):
-        return self._loop._wrap_sync(self._orig.close)
+        return self._orig.close()
 
     async def start_serving(self):
         return await self._loop._wrap_async(self._orig.start_serving())

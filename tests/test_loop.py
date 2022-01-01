@@ -1,4 +1,6 @@
 import asyncio
+import os
+import signal
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
@@ -223,10 +225,17 @@ class TestLoop(unittest.TestCase):
                 called = True
 
             await self.loop.shutdown_default_executor()
-            with self.assertRaisesRegex(RuntimeError, "Event loop is closed"):
-                await self.loop.run_until_complete(None, g)
+            with self.assertRaisesRegex(
+                RuntimeError, "Executor shutdown has been called"
+            ):
+                await self.loop.run_in_executor(None, g)
 
         self.loop.run_until_complete(f())
+
+    def test_check_closed(self):
+        self.loop.close()
+        with self.assertRaisesRegex(RuntimeError, "Event loop is closed"):
+            self.loop.call_soon(lambda: None)
 
     def test_shutdown_asyncgens(self):
         async def f():
@@ -234,6 +243,23 @@ class TestLoop(unittest.TestCase):
                 RuntimeWarning, "Only the original loop can shutdown async generators"
             ):
                 await self.loop.shutdown_asyncgens()
+
+        self.loop.run_until_complete(f())
+
+    def test_signal_handler(self):
+        async def f():
+            self.assertFalse(self.loop.remove_signal_handler(signal.SIGINT))
+            called = False
+
+            def cb():
+                nonlocal called
+                called = True
+
+            self.loop.add_signal_handler(signal.SIGINT, cb)
+            os.kill(os.getpid(), signal.SIGINT)
+            await asyncio.sleep(0.01)
+            self.assertTrue(called)
+            self.assertTrue(self.loop.remove_signal_handler(signal.SIGINT))
 
         self.loop.run_until_complete(f())
 

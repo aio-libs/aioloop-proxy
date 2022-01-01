@@ -442,17 +442,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def add_signal_handler(self, sig, callback, *args):
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
-        parent_handle = self._wrap_sync(
-            self._parent.add_signal_handler, sig, self._wrap_sync_proto, handle._run
-        )
-        handle._set_parent(parent_handle)
-        if handle._source_traceback:
-            del handle._source_traceback[-1]
+        self._parent.add_signal_handler(sig, self._wrap_sync_proto, handle._run)
         self._signals[sig] = handle
 
     def remove_signal_handler(self, sig):
         handler = self._signals.pop(sig, None)
-        self._wrap_sync(self._parent.remove_signal_handler, sig)
+        self._parent.remove_signal_handler(sig)
         return handler is not None
 
     # Task factory.

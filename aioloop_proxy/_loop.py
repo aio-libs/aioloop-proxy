@@ -98,7 +98,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     async def shutdown_asyncgens(self):
         warnings.warn(
-            "Only original loop can shutdown async generators", RuntimeWarning
+            "Only the original loop can shutdown async generators", RuntimeWarning
         )
         return
 

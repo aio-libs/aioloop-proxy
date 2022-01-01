@@ -178,6 +178,65 @@ class TestLoop(unittest.TestCase):
         ):
             self.loop.set_default_executor(123)
 
+    def test_close_custom_default_executor_with_warning(self):
+        async def f():
+            def g():
+                return "done"
+
+            self.loop.set_default_executor(ThreadPoolExecutor())
+            ret = await self.loop.run_in_executor(None, g)
+            self.assertEqual(ret, "done")
+
+        self.loop.run_until_complete(f())
+        with self.assertWarnsRegex(
+            RuntimeWarning,
+            r"Please call 'await proxy\.shutdown_default_executor\(\) explicitly",
+        ):
+            self.loop.close()
+
+    def test_close_running_event_loop(self):
+        async def f():
+            with self.assertRaisesRegex(
+                RuntimeError, "Cannot close a running event loop"
+            ):
+                self.loop.close()
+
+        self.loop.run_until_complete(f())
+
+    def test_shutdown_default_executor_fails(self):
+        async def f():
+            executor = mock.Mock(spec=ThreadPoolExecutor)
+            executor.shutdown.side_effect = RuntimeError("Shutdown failed")
+            self.loop.set_default_executor(executor)
+
+            with self.assertRaisesRegex(RuntimeError, "Shutdown failed"):
+                await self.loop.shutdown_default_executor()
+
+        self.loop.run_until_complete(f())
+
+    def test_default_executor_call_after_shutdown(self):
+        async def f():
+            called = False
+
+            def g():
+                nonlocal called
+                called = True
+
+            await self.loop.shutdown_default_executor()
+            with self.assertRaisesRegex(RuntimeError, "Event loop is closed"):
+                await self.loop.run_until_complete(None, g)
+
+        self.loop.run_until_complete(f())
+
+    def test_shutdown_asyncgens(self):
+        async def f():
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Only the original loop can shutdown async generators"
+            ):
+                await self.loop.shutdown_asyncgens()
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

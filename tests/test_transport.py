@@ -1,8 +1,9 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, sentinel
+from unittest.mock import Mock
 
 import aioloop_proxy
+from aioloop_proxy._protocol import _proto_proxy
 from aioloop_proxy._transport import _make_transport_proxy
 
 _loop = None
@@ -36,12 +37,17 @@ class TestTransport(unittest.TestCase):
 
     def test_get_protocol(self):
         orig = Mock(spec=asyncio.BaseTransport)
-        orig.get_protocol.return_value = sentinel
+        prot = Mock(spec=asyncio.BaseProtocol)
+        orig.get_protocol.return_value = _proto_proxy(prot, self.loop)
         transp = _make_transport_proxy(orig, self.loop)
-        self.assertIs(transp.get_protocol(), sentinel)
+        self.assertIs(transp.get_protocol(), prot)
 
     def test_set_protocol(self):
         orig = Mock(spec=asyncio.BaseTransport)
+        prot = Mock(spec=asyncio.BaseProtocol)
         transp = _make_transport_proxy(orig, self.loop)
-        transp.set_protocol(sentinel)
-        orig.set_protocol.assert_called_once_with(sentinel)
+        transp.set_protocol(prot)
+        kall = orig.set_protocol.call_args
+        self.assertEqual({}, kall.kwargs)
+        self.assertEqual(1, len(kall.args))
+        self.assertIs(prot, kall.args[0].protocol)

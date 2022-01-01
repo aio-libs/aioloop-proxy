@@ -24,10 +24,12 @@ class _BaseTransportProxy(asyncio.BaseTransport):
         return self._orig.close()
 
     def set_protocol(self, protocol):
-        return self._orig.set_protocol(protocol)
+        from ._protocol import _proto_proxy
+
+        return self._orig.set_protocol(_proto_proxy(protocol, self._loop))
 
     def get_protocol(self):
-        return self._orig.get_protocol()
+        return self._orig.get_protocol().protocol
 
 
 class _ReadTransportProxy(_BaseTransportProxy, asyncio.ReadTransport):

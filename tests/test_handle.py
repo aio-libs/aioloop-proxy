@@ -110,9 +110,34 @@ class TestHandleBase:
 
             handle = self.loop.call_soon(cb)
             handle._parent.cancel()
-            await asyncio.sleep(0)
             self.assertTrue(handle.cancelled())
             self.assertFalse(called)
+
+        self.loop.run_until_complete(f())
+
+    def test_cancel_twice(self):
+        async def f():
+            called = False
+
+            def cb():
+                nonlocal called
+                called = True
+
+            handle = self.loop.call_soon(cb)
+            handle.cancel()
+            self.assertTrue(handle.cancelled())
+            handle.cancel()
+            self.assertTrue(handle.cancelled())
+            self.assertFalse(called)
+
+        self.loop.run_until_complete(f())
+
+    def test_keep_internal_reference(self):
+        async def f():
+            fut = self.loop.create_future()
+            self.loop.call_soon(fut.set_result, None)
+            res = await fut
+            self.assertIsNone(res)
 
         self.loop.run_until_complete(f())
 

@@ -513,8 +513,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 source.cancel()
 
         def _call_set_state(source):
-            if target._loop.is_closed():
-                return
             if source.cancelled():
                 target.cancel()
                 return

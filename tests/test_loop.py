@@ -288,6 +288,20 @@ class TestLoop(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_chain_future_source_exception(self):
+        async def f():
+            src = self.loop.create_future()
+            tgt = self.loop.create_future()
+
+            self.loop._chain_future(tgt, src)
+            src.set_exception(RuntimeError())
+            await asyncio.sleep(0)
+            self.assertFalse(tgt.cancelled())
+            with self.assertRaises(RuntimeError):
+                await tgt
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

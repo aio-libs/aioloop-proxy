@@ -100,6 +100,22 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
+    def test_cancel_parent(self):
+        async def f():
+            called = False
+
+            def cb():
+                nonlocal called
+                called = True
+
+            handle = self.loop.call_soon(cb)
+            handle._parent.cancel()
+            await asyncio.sleep(0)
+            self.assertTrue(handle.cancelled())
+            self.assertFalse(called)
+
+        self.loop.run_until_complete(f())
+
 
 class TestHandleNonDebug(TestHandleBase, unittest.TestCase):
     def setUp(self):

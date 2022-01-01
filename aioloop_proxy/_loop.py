@@ -132,7 +132,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_handle = self._wrap_sync(
             self._parent.call_soon, self._wrap_sync_proto, handle._run
         )
-        handle._parent = parent_handle
+        handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
         self._handles.add(handle)
@@ -144,7 +144,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_timer = self._wrap_sync(
             self._parent.call_later, delay, self._wrap_sync_proto, timer._run
         )
-        timer._parent = parent_timer
+        timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
         self._timers.add(timer)
@@ -156,7 +156,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_timer = self._wrap_sync(
             self._parent.call_at, when, self._wrap_sync_proto, timer._run
         )
-        timer._parent = parent_timer
+        timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
         self._timers.add(timer)
@@ -198,7 +198,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_handle = self._wrap_sync(
             self._parent.call_soon_threadsafe, self._wrap_sync_proto, handle._run
         )
-        handle._parent = parent_handle
+        handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
         self._handles.add(handle)
@@ -382,11 +382,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def add_reader(self, fd, callback, *args):
         self._check_closed()
-        handle = _ProxyHandle(callback, args, self)
-        parent_handle = self._wrap_sync(
-            self._parent.add_reader, fd, self._wrap_sync_proto, handle._run
-        )
-        handle._parent = parent_handle
+        handle = asyncio.Handle(callback, args, self)
+        self._wrap_sync(self._parent.add_reader, fd, self._wrap_sync_proto, handle._run)
         self._readers[fd] = handle
 
     def remove_reader(self, fd):
@@ -402,11 +399,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def add_writer(self, fd, callback, *args):
         self._check_closed()
-        handle = _ProxyHandle(callback, args, self)
-        parent_handle = self._wrap_sync(
-            self._parent.add_writer, fd, self._wrap_sync_proto, handle._run
-        )
-        handle._parent = parent_handle
+        handle = asyncio.Handle(callback, args, self)
+        self._wrap_sync(self._parent.add_writer, fd, self._wrap_sync_proto, handle._run)
         self._writers[fd] = handle
 
     def remove_writer(self, fd):
@@ -456,17 +450,14 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_handle = self._wrap_sync(
             self._parent.add_signal_handler, sig, self._wrap_sync_proto, handle._run
         )
-        handle._parent = parent_handle
+        handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
         self._signals[sig] = handle
 
     def remove_signal_handler(self, sig):
         handler = self._signals.pop(sig, None)
-        removed_by_parent = self._wrap_sync(self._parent.remove_signal_handler, sig)
-        # ignore removed_by_parent
-        # don't touch if did not set
-        removed_by_parent
+        self._wrap_sync(self._parent.remove_signal_handler, sig)
         return handler is not None
 
     # Task factory.

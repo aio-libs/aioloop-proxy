@@ -8,6 +8,7 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
         self._loop = loop
         self.protocol = protocol
         self.transport = None
+        self.wait_closed = self.loop.create_future()
 
     def __repr__(self):
         return repr(self.protocol)
@@ -18,6 +19,7 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
 
     def connection_lost(self, exc):
         self._loop._wrap_cb(self.protocol.connection_lost, exc)
+        self.wait_closed.set_result(None)
 
     def pause_writing(self):
         self._loop._wrap_cb(self.protocol.pause_writing)

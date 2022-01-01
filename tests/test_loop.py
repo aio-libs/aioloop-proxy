@@ -29,13 +29,13 @@ class TestLoop(unittest.TestCase):
 
     def tearDown(self):
         if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
-        self.loop.check_resouces(strict=True)
 
     def test_repr(self):
         debug = self.loop.get_debug()
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             self.assertEqual(
                 repr(proxy),
                 f"<LoopProxy running=False closed=False debug={debug}>",
@@ -43,7 +43,7 @@ class TestLoop(unittest.TestCase):
 
     def test_slow_callback_duration(self):
         value = self.loop.slow_callback_duration
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             self.assertEqual(proxy.slow_callback_duration, value)
             proxy.slow_callback_duration = 1
             self.assertEqual(proxy.slow_callback_duration, 1)
@@ -52,7 +52,7 @@ class TestLoop(unittest.TestCase):
 
     def test_debug(self):
         value = self.loop.get_debug()
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             self.assertEqual(proxy.get_debug(), value)
             # negation allows the test pass in both normal and '-X dev' modes
             proxy.set_debug(not value)
@@ -62,7 +62,7 @@ class TestLoop(unittest.TestCase):
 
     def test_exception_handler(self):
         self.assertIsNone(self.loop.get_exception_handler())
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             self.assertIsNone(proxy.get_exception_handler())
 
             def f(loop, ctx):
@@ -76,7 +76,7 @@ class TestLoop(unittest.TestCase):
 
     def test_default_exception_handler(self):
         with mock.patch.object(self.loop, "default_exception_handler") as deh:
-            with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+            with aioloop_proxy.proxy(self.loop) as proxy:
                 ctx = {"a": "b"}
                 proxy.default_exception_handler(ctx)
                 deh.assert_called_once_with(ctx)
@@ -84,7 +84,7 @@ class TestLoop(unittest.TestCase):
         self.assertIsNone(self.loop.get_exception_handler())
 
     def test_call_exception_handler(self):
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             handler = mock.Mock()
             proxy.set_exception_handler(handler)
             ctx = {"a": "b"}
@@ -94,7 +94,7 @@ class TestLoop(unittest.TestCase):
 
     def test_task_factory(self):
         self.assertIsNone(self.loop.get_task_factory())
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             called = False
 
             def factory(loop, coro):
@@ -125,7 +125,7 @@ class TestLoop(unittest.TestCase):
             self.assertIsNone(proxy.get_task_factory())
 
     def test_task_factory_invalid(self):
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             with self.assertRaisesRegex(
                 TypeError, "task factory must be a callable or None"
             ):

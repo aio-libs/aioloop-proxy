@@ -26,9 +26,10 @@ class TestProtocol(unittest.TestCase):
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
     def tearDown(self):
-        self.loop.run_until_complete(self.loop.shutdown_default_executor())
-        self.loop.check_resouces(strict=True)
-        self.loop.close()
+        if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            self.loop.close()
 
     def test_repr(self):
         proto = Mock(spec=asyncio.Protocol)

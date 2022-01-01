@@ -26,9 +26,9 @@ class TestTransport(unittest.TestCase):
 
     def tearDown(self):
         if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
-        self.loop.check_resouces(strict=True)
 
     def test_add_reader(self):
         async def f():
@@ -46,6 +46,7 @@ class TestTransport(unittest.TestCase):
             ret = await fut
             self.assertEqual(ret, b"MSG")
 
+            self.loop.remove_reader(rpipe)
             os.close(rpipe)
             os.close(wpipe)
 

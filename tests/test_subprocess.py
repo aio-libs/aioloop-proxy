@@ -69,9 +69,10 @@ class TestSubprocess(unittest.TestCase):
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
     def tearDown(self):
-        self.loop.run_until_complete(self.loop.shutdown_default_executor())
-        self.loop.check_resouces(strict=True)
-        self.loop.close()
+        if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            self.loop.close()
 
     def exec_cmd(self, *args):
         script = pathlib.Path(__file__).parent / "subproc.py"

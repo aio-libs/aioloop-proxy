@@ -244,9 +244,10 @@ class TestTCP(unittest.TestCase):
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
     def tearDown(self):
-        self.loop.run_until_complete(self.loop.shutdown_default_executor())
-        self.loop.check_resouces(strict=True)
-        self.loop.close()
+        if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            self.loop.close()
 
     def check_server_by_client(self, server):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -615,9 +616,10 @@ class TestUNIX(unittest.TestCase):
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
     def tearDown(self):
-        self.loop.run_until_complete(self.loop.shutdown_default_executor())
-        self.loop.check_resouces(strict=True)
-        self.loop.close()
+        if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+            self.loop.close()
 
     async def connect_and_test(self, cli_proto_factory):
         proto = SrvProto(self)

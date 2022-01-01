@@ -25,9 +25,9 @@ class TestConcurrent(unittest.TestCase):
 
     def tearDown(self):
         if not self.loop.is_closed():
+            self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
-        self.loop.check_resouces(strict=True)
 
     def test_concurrent(self):
         async def serve(reader, writer):
@@ -53,7 +53,7 @@ class TestConcurrent(unittest.TestCase):
         )
         addr = server.sockets[0].getsockname()
 
-        with aioloop_proxy.proxy(self.loop, strict=True) as proxy:
+        with aioloop_proxy.proxy(self.loop) as proxy:
             ret = proxy.run_until_complete(client(addr))
             self.assertEqual("done", ret)
 

@@ -1,5 +1,7 @@
 import asyncio
 import concurrent.futures
+import contextlib
+import enum
 import threading
 import warnings
 import weakref
@@ -8,6 +10,18 @@ from ._handle import _HandleCaller, _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
 from ._transport import _make_transport_proxy
+
+
+class CheckKind(enum.Flag):
+    TASKS = enum.auto()
+    SIGNALS = enum.auto()
+    SERVERS = enum.auto()
+    TRANSPORTS = enum.auto()
+    READERS = enum.auto()
+    WRITERS = enum.auto()
+    HANDLES = enum.auto()
+
+    ALL = TASKS | SIGNALS | SERVERS | TRANSPORTS | READERS | WRITERS
 
 
 class LoopProxy(asyncio.AbstractEventLoop):
@@ -19,7 +33,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._handles = set()
         self._readers = {}
         self._writers = {}
-        self._futures = weakref.WeakSet()
         self._tasks = weakref.WeakSet()
         self._transports = weakref.WeakSet()
         self._servers = weakref.WeakSet()
@@ -28,6 +41,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._task_factory = None
         self._default_executor = None
         self._executor_shutdown_called = False
+
+        self._root_task = None
 
     def __repr__(self):
         running = self.is_running()
@@ -46,9 +61,78 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     # Proxy-specific API
 
-    def check_resouces(self, *, strict=None):
-        if strict is None:
-            strict = self.get_debug()
+    async def check_and_shutdown(self, kind=CheckKind.ALL):
+        for task in list(self._tasks):
+            if task is self._root_task:
+                continue
+            if task.done():
+                continue
+            if kind & CheckKind.TASKS:
+                warnings.warn(
+                    f"Unfinished task {task!r}", ResourceWarning, stacklevel=2
+                )
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._tasks.clear()
+
+        for sig in list(self._signals):
+            if kind & CheckKind.SIGNALS:
+                warnings.warn(
+                    f"Unregistered signal {sig}", ResourceWarning, stacklevel=2
+                )
+            self.remove_signal_handler(sig)
+        self._signals.clear()
+
+        for server in list(self._servers):
+            if not server.is_serving():
+                continue
+            if kind & CheckKind.SERVERS:
+                warnings.warn(
+                    f"Unclosed server {server!r}", ResourceWarning, stacklevel=2
+                )
+            server.close()
+            await server.wait_closed()
+        self._servers.clear()
+
+        for transport in list(self._transports):
+            if kind & CheckKind.TRANSPORTS:
+                warnings.warn(
+                    f"Unclosed transport {transport!r}", ResourceWarning, stacklevel=2
+                )
+            if isinstance(transport, asyncio.WriteTransport):
+                transport.abort()
+            else:
+                transport.close()
+            proto = transport._orig.get_protocol()
+            await proto.wait_closed
+        self._transports.clear()
+
+        for fd, handle in list(self._readers.items()):
+            if kind & CheckKind.READERS:
+                warnings.warn(
+                    f"Unfinished reader {fd} -> {handle!r}",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
+            self.remove_reader(fd)
+        self._readers.clear()
+
+        for fd, handle in list(self._writers.items()):
+            if kind & CheckKind.WRITERS:
+                warnings.warn(
+                    f"Unfinished writer {fd} -> {handle!r}",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
+            self.remove_writer(fd)
+        self._writers.clear()
+
+        for handle in list(self._handles):
+            # Don't warn about unfinished handles,
+            # asyncio loop doesn't treat it as a resource leak
+            handle.cancel()
+        self._handles.clear()
 
     # Running and stopping the event loop.
 
@@ -67,7 +151,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 future._log_destroy_pending = False
             waiter = self._parent.create_future()
             self._chain_future(waiter, future)
-            ret = await waiter
+            if new_task:
+                self._root_task = future
+            try:
+                ret = await waiter
+            finally:
+                self._root_task = None
             return ret
 
         return self._parent.run_until_complete(main())
@@ -157,7 +246,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def create_future(self):
         fut = asyncio.Future(loop=self)
-        self._futures.add(fut)
         return fut
 
     # Method scheduling a coroutine object: create a task.
@@ -205,7 +293,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
         parent_fut = self._parent.run_in_executor(executor, func, *args)
         fut = self.create_future()
         self._chain_future(fut, parent_fut)
-        self._futures.add(fut)
         return fut
 
     def set_default_executor(self, executor):

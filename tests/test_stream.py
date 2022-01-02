@@ -538,10 +538,12 @@ class TestTCP(unittest.TestCase):
             data = await pr.recv()
             self.assertEqual(b"CONNECTED\n", data)
             fname = pathlib.Path(__file__)
+            body = fname.read_bytes()
             with fname.open("rb") as fp:
-                await self.loop.sendfile(tr, fp)
+                sent = await self.loop.sendfile(tr, fp)
+            self.assertEqual(sent, len(body))
             ret = await pr.recv()
-            expected = b"ACK:" + fname.read_bytes()
+            expected = b"ACK:" + body
             self.assertEqual(len(ret), len(expected))
             self.assertEqual(ret, expected)
             tr.close()

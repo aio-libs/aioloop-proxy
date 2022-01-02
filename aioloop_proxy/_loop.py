@@ -263,8 +263,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             if name is not None:
                 try:
                     set_name = task.set_name
-                except AttributeError:  # pragma: no cover
-                    pass  # just in case of very obsolete custom task class
+                except AttributeError:
+                    pass  # Python < 3.9 has no task name support
                 else:
                     set_name(name)
         self._tasks.add(task)

@@ -5,7 +5,11 @@ install:
 	pre-commit install
 
 lint:
+ifdef CI
+	pre-commit run --all-files --show-diff-on-failure
+else
 	pre-commit run --all-files
+endif
 
 test:
 	python -We -m unittest discover tests

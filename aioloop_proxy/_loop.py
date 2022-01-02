@@ -259,6 +259,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             if sys.version_info >= (3, 9):
                 task = asyncio.Task(coro, loop=self, name=name)
             else:
+                # The name is ignored without a warning,
+                # like with a custom task factory
                 task = asyncio.Task(coro, loop=self)
             if task._source_traceback:
                 del task._source_traceback[-1]

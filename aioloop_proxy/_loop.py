@@ -31,7 +31,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._parent = parent
         self._closed = False
 
-        self._handles = set()
+        self._ready = set()
+        self._timers = set()
         self._readers = {}
         self._writers = {}
         self._tasks = weakref.WeakSet()
@@ -131,11 +132,17 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self.remove_writer(fd)
         self._writers.clear()
 
-        for handle in list(self._handles):
+        for handle in list(self._ready):
             # Don't warn about unfinished handles,
             # asyncio loop doesn't treat it as a resource leak
             handle.cancel()
-        self._handles.clear()
+        self._ready.clear()
+
+        for timer in list(self._timers):
+            # Don't warn about unfinished timers,
+            # asyncio loop doesn't treat it as a resource leak
+            timer.cancel()
+        self._timers.clear()
 
     # Running and stopping the event loop.
 

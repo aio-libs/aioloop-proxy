@@ -156,6 +156,9 @@ class TestCheckAndShutdown(unittest.TestCase):
         script = pathlib.Path(__file__).parent / "subproc.py"
         return [sys.executable, str(script)] + list(args)
 
+    @unittest.skipIf(
+        sys.version_info < (3, 8), "Subprocess support is tricky in Python 3.7"
+    )
     def test_subproc_transports(self):
         async def f():
             proc = await asyncio.create_subprocess_exec(
@@ -199,6 +202,9 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(
+        sys.version_info < (3, 8), "Subprocess support is tricky in Python 3.7"
+    )
     def test_subproc_transports_ignore(self):
         async def f():
             proc = await asyncio.create_subprocess_exec(

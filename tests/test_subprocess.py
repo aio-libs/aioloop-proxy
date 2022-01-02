@@ -65,6 +65,9 @@ class Proto(asyncio.SubprocessProtocol):
             self._recv = self.loop.create_future()
 
 
+@unittest.skipIf(
+    sys.version_info < (3, 8), "Subprocess support is tricky in Python 3.7"
+)
 class TestSubprocess(unittest.TestCase):
     def setUp(self):
         self.loop = aioloop_proxy.LoopProxy(_loop)

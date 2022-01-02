@@ -541,7 +541,7 @@ class TestTCP(unittest.TestCase):
             with fname.open("rb") as fp:
                 await self.loop.sendfile(tr, fp)
             ret = await pr.recv()
-            self.assertEqual(ret, b"ACK:" + fname.read_bytes())
+            self.assertEqual(ret.strip(), b"ACK:" + fname.read_bytes().strip())
             tr.close()
             self.assertTrue(tr.is_closing())
             await pr.closed

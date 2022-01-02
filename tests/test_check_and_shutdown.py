@@ -19,7 +19,8 @@ def setUpModule():
 
 def tearDownModule():
     global _loop
-    _loop.run_until_complete(_loop.shutdown_default_executor())
+    if hasattr(_loop, "shutdown_default_executor"):
+        _loop.run_until_complete(_loop.shutdown_default_executor())
     _loop.run_until_complete(_loop.shutdown_asyncgens())
     _loop.close()
     _loop = None

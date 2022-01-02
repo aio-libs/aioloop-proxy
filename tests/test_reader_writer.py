@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import unittest
 
 import aioloop_proxy
@@ -21,6 +22,7 @@ def tearDownModule():
     _loop = None
 
 
+@unittest.skipIf(sys.platform == "win32", "Not supported by Windows")
 class TestTransport(unittest.TestCase):
     def setUp(self):
         self.loop = aioloop_proxy.LoopProxy(_loop)

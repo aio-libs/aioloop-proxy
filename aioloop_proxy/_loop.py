@@ -259,11 +259,6 @@ class LoopProxy(asyncio.AbstractEventLoop):
             if sys.version_info >= (3, 9):
                 task = asyncio.Task(coro, loop=self, name=name)
             else:
-                if name is not None:
-                    func_name = f"{self.__class__.__name__}.create_task()"
-                    raise TypeError(
-                        f"{func_name} got an unexpected keyword argument 'name'"
-                    )
                 task = asyncio.Task(coro, loop=self)
             if task._source_traceback:
                 del task._source_traceback[-1]

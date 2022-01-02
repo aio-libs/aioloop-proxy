@@ -115,7 +115,8 @@ class TestLoop(unittest.TestCase):
             async def g():
                 self.assertIs(asyncio.get_running_loop(), proxy)
                 task = proxy.create_task(f(), name="named-task")
-                self.assertEqual(task.get_name(), "named-task")
+                if sys.version_info >= (3, 9):
+                    self.assertEqual(task.get_name(), "named-task")
                 ret = await task
                 return ret
 

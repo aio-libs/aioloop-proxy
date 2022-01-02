@@ -75,10 +75,10 @@ jobs:
       with:
         path: requirements.txt
     - name: Run unittests
-      env:
-        COLOR: 'yes'
       run: |
         make cov
+    - name: Generate coverage XML
+      run: |
         coverage xml
     - name: Upload coverage artifact
       uses: aio-libs/prepare-coverage@v21.9.1

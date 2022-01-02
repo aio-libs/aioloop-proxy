@@ -8,7 +8,7 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
         self._loop = loop
         self.protocol = protocol
         self.transport = None
-        self.wait_closed = self.loop.create_future()
+        self.wait_closed = self._loop.create_future()
 
     def __repr__(self):
         return repr(self.protocol)
@@ -78,10 +78,10 @@ class _SubprocessProtocolProxy(_BaseProtocolProxy, asyncio.SubprocessProtocol):
 
 
 _MAP = (
-    (asyncio.BufferedProtocol, _BufferedProtocolProxy),
-    (asyncio.Protocol, _ProtocolProxy),
     (asyncio.SubprocessProtocol, _SubprocessProtocolProxy),
     (asyncio.DatagramProtocol, _DatagramProtocolProxy),
+    (asyncio.BufferedProtocol, _BufferedProtocolProxy),
+    (asyncio.Protocol, _ProtocolProxy),
     (asyncio.BaseProtocol, _BaseProtocolProxy),
 )
 

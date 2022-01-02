@@ -96,6 +96,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._servers.clear()
 
         for transport in list(self._transports):
+            if transport.is_closing():
+                continue
             if kind & CheckKind.TRANSPORTS:
                 warnings.warn(
                     f"Unclosed transport {transport!r}", ResourceWarning, stacklevel=2

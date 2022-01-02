@@ -114,7 +114,7 @@ class TestSubprocess(unittest.TestCase):
             tr, pr = await self.loop.subprocess_shell(
                 lambda: Proto(self), self.shell_cmd()
             )
-            print("!!!! CMD", self.shell_cmd())
+            raise RuntimeError(self.shell_cmd())
             fd, data = await pr.recv()
             self.assertEqual(data.strip(), b"READY")
 

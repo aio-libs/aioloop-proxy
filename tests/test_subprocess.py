@@ -109,7 +109,9 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    @unittest.skipIf(sys.platform == "win32", "Windows shell is not compliant")
+    @unittest.skipIf(
+        sys.platform == "win32", "Windows shell is not compliant with GitHub CI"
+    )
     def test_shell(self):
         async def f():
             tr, pr = await self.loop.subprocess_shell(

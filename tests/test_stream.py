@@ -472,6 +472,7 @@ class TestTCP(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows behavior is really strange here")
     def test_connect_accepted_socket(self):
         async def client(host, port):
             tr, pr = await self.loop.create_connection(

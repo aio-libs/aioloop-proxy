@@ -109,13 +109,14 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows shell is not compliant")
     def test_shell(self):
         async def f():
             tr, pr = await self.loop.subprocess_shell(
                 lambda: Proto(self), self.shell_cmd()
             )
-            raise RuntimeError(self.shell_cmd())
             fd, data = await pr.recv()
+            self.assertEqual(fd, 1)
             self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"DATA\n")

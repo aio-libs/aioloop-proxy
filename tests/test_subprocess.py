@@ -211,6 +211,7 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no posix signals")
     def test_send_signal(self):
         async def f():
             tr, pr = await self.loop.subprocess_exec(
@@ -243,7 +244,10 @@ class TestSubprocess(unittest.TestCase):
 
             tr.terminate()
             await pr.exited
-            self.assertEqual(tr.get_returncode(), -signal.SIGTERM)
+            if sys.platform == "win32":
+                self.assertEqual(tr.get_returncode(), 1)
+            else:
+                self.assertEqual(tr.get_returncode(), -signal.SIGTERM)
             tr.close()
             await pr.closed
 
@@ -253,6 +257,7 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no SIGKILL")
     def test_kill(self):
         async def f():
             tr, pr = await self.loop.subprocess_exec(

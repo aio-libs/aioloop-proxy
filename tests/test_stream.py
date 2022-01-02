@@ -3,6 +3,7 @@ import pathlib
 import secrets
 import socket
 import ssl
+import sys
 import tempfile
 import unittest
 
@@ -612,6 +613,7 @@ class TestTCP(unittest.TestCase):
         self.loop.run_until_complete(f())
 
 
+@unittest.skipIf(sys.platform == "win32", "Windows has no UNIX sockets")
 class TestUNIX(unittest.TestCase):
     def setUp(self):
         self.loop = aioloop_proxy.LoopProxy(_loop)

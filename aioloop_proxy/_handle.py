@@ -6,6 +6,7 @@ class _ProxyHandleMixin:
 
     def _set_parent(self, parent):
         self._parent = parent
+        self._register()
 
     def cancel(self):
         if self.cancelled():
@@ -25,6 +26,10 @@ class _ProxyHandleMixin:
                 self._parent = None
         return super().cancelled()
 
+    def _run(self):
+        self._discard()
+        self._loop._wrap_cb(super()._run)
+
 
 class _ProxyHandle(_ProxyHandleMixin, asyncio.Handle):
     def _register(self):
@@ -40,16 +45,3 @@ class _ProxyTimerHandle(_ProxyHandleMixin, asyncio.TimerHandle):
 
     def _discard(self):
         self._loop._timers.discard(self)
-
-
-class _HandleCaller:
-    def __init__(self, loop_proxy, handle):
-        self.loop_proxy = loop_proxy
-        self.handle = handle
-        handle._register()
-
-    def __call__(self):
-        handle = self.handle
-        self.handle = None  # drop circular reference
-        handle._discard()
-        self.loop_proxy._wrap_cb(handle._run)

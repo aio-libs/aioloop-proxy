@@ -306,6 +306,35 @@ class TestLoop(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_advance_time(self):
+        async def f():
+            fut = self.loop.create_future()
+
+            self.loop.call_later(24 * 3600, fut.set_result, None)
+            self.assertFalse(fut.done())
+
+            self.loop.advance_time(24 * 3600)
+            self.assertFalse(fut.done())
+            await asyncio.sleep(0.01)
+            self.assertTrue(fut.done())
+
+        self.loop.run_until_complete(f())
+
+    def test_advance_time_cancelled(self):
+        async def f():
+            fut = self.loop.create_future()
+
+            timer = self.loop.call_later(24 * 3600, fut.set_result, None)
+            self.assertFalse(fut.done())
+            timer._parent.cancel()
+
+            self.loop.advance_time(24 * 3600)
+            self.assertFalse(fut.done())
+            await asyncio.sleep(0.01)
+            self.assertFalse(fut.done())
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

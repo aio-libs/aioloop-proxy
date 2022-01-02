@@ -314,6 +314,15 @@ class TestCheckAndShutdown(unittest.TestCase):
 
     def test_close_handle(self):
         async def f():
+            handle = self.loop.call_soon(lambda: None)
+            await self.loop.check_and_shutdown()
+
+            self.assertTrue(handle.cancelled())
+
+        self.loop.run_until_complete(f())
+
+    def test_close_timer(self):
+        async def f():
             handle = self.loop.call_later(10, lambda: None)
             await self.loop.check_and_shutdown()
 

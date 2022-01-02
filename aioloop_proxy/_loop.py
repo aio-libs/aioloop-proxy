@@ -7,7 +7,7 @@ import threading
 import warnings
 import weakref
 
-from ._handle import _HandleCaller, _ProxyHandle, _ProxyTimerHandle
+from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
 from ._transport import _make_transport_proxy
@@ -45,6 +45,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._executor_shutdown_called = False
 
         self._root_task = None
+        self._time_offset = 0
 
     def __repr__(self):
         running = self.is_running()
@@ -62,6 +63,19 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._parent.slow_callback_duration = value
 
     # Proxy-specific API
+
+    def advance_time(self, offset):
+        self._time_offset += offset
+        parent_loop = self._parent
+        for timer in self._timers:
+            parent = timer._parent
+            if parent is None or parent.cancelled():
+                # cancelled or executed
+                continue
+            # Reschedule the parent proxy timer by shifting it BACK to offset seconds
+            parent.cancel()
+            parent = parent_loop.call_at(parent.when() - offset, timer._run)
+            timer._set_parent(parent)
 
     async def check_and_shutdown(self, kind=CheckKind.ALL):
         for task in list(self._tasks):
@@ -227,7 +241,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_soon(self, callback, *args, context=None):
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
-        parent_handle = self._parent.call_soon(_HandleCaller(self, handle))
+        parent_handle = self._parent.call_soon(handle._run)
         handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]
@@ -236,7 +250,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_later(self, delay, callback, *args, context=None):
         self._check_closed()
         timer = _ProxyTimerHandle(self.time() + delay, callback, args, self, context)
-        parent_timer = self._parent.call_later(delay, _HandleCaller(self, timer))
+        parent_timer = self._parent.call_later(delay, timer._run)
         timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
@@ -245,14 +259,14 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_at(self, when, callback, *args, context=None):
         self._check_closed()
         timer = _ProxyTimerHandle(when, callback, args, self, context)
-        parent_timer = self._parent.call_at(when, _HandleCaller(self, timer))
+        parent_timer = self._parent.call_at(when, timer._run)
         timer._set_parent(parent_timer)
         if timer._source_traceback:
             del timer._source_traceback[-1]
         return timer
 
     def time(self):
-        return self._parent.time()
+        return self._parent.time() + self._time_offset
 
     def create_future(self):
         fut = asyncio.Future(loop=self)
@@ -288,7 +302,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_soon_threadsafe(self, callback, *args, context=None):
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
-        parent_handle = self._parent.call_soon_threadsafe(_HandleCaller(self, handle))
+        parent_handle = self._parent.call_soon_threadsafe(handle._run)
         handle._set_parent(parent_handle)
         if handle._source_traceback:
             del handle._source_traceback[-1]

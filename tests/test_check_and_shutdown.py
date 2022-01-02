@@ -65,6 +65,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no UNIX signals")
     def test_signals(self):
         async def f():
             self.loop.add_signal_handler(signal.SIGINT, lambda: None)
@@ -73,6 +74,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no UNIX signals")
     def test_signals_ignored(self):
         async def f():
             self.loop.add_signal_handler(signal.SIGINT, lambda: None)
@@ -214,6 +216,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no readers support")
     def test_readers(self):
         async def f():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -236,6 +239,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no readers support")
     def test_readers_ignore(self):
         async def f():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -257,6 +261,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no writers support")
     def test_writers(self):
         async def f():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -279,6 +284,7 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no writers support")
     def test_writers_ignore(self):
         async def f():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

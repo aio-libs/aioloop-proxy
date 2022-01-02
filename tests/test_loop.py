@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
@@ -247,6 +248,7 @@ class TestLoop(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(sys.platform == "win32", "Windows has no UNIX signals")
     def test_signal_handler(self):
         async def f():
             self.assertFalse(self.loop.remove_signal_handler(signal.SIGINT))

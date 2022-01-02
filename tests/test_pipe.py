@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import unittest
 
 import aioloop_proxy
@@ -56,6 +57,7 @@ class Proto(asyncio.Protocol):
             self._recv = self.loop.create_future()
 
 
+@unittest.skipIf(sys.platform == "win32", "Not supported by Windows")
 class TestPipes(unittest.TestCase):
     def setUp(self):
         self.loop = aioloop_proxy.LoopProxy(_loop)

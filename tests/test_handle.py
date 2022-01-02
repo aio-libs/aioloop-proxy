@@ -222,7 +222,7 @@ class TestTimerHandleBase:
             self.assertFalse(handle.cancelled())
             self.assertIsNone(res)
             self.assertLess(t0, t1)
-            self.assertGreater(t1 - t0, 0.1)
+            self.assertGreater(t1 - t0, 0.08)
 
         self.loop.run_until_complete(f())
 

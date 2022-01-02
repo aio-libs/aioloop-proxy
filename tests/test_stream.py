@@ -434,8 +434,6 @@ class TestTCP(unittest.TestCase):
             server.close()
             await server.wait_closed()
 
-            self.assertSetEqual(pr.events, {"MADE", "DATA", "LOST"})
-
         self.loop.run_until_complete(f())
 
     def test_write_buffer_limits(self):

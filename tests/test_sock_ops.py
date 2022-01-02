@@ -1,6 +1,7 @@
 import asyncio
 import pathlib
 import socket
+import sys
 import unittest
 
 import aioloop_proxy
@@ -109,7 +110,11 @@ class TestSockOps(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_sock_sendall(self):
+    @unittest.skipIf(
+        sys.platform == "win32" and sys.version_info < (3, 8),
+        "sendfile is buggy for Python 3.7 on Windows",
+    )
+    def test_sock_sendfile(self):
         async def f():
             async def serve(reader, writer):
                 data = await reader.read(0x1_000_000)

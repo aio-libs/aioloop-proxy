@@ -523,6 +523,10 @@ class TestTCP(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    @unittest.skipIf(
+        sys.platform == "win32" and sys.version_info < (3, 8),
+        "sendfile is buggy for Python 3.7 on Windows",
+    )
     def test_sendfile(self):
         async def f():
             proto = SrvProto(self)

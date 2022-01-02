@@ -103,7 +103,7 @@ class TestDatagram(unittest.TestCase):
             )
 
             tr1.sendto(b"DATA", ("127.0.0.0", 1))
-            with self.assertRaises(PermissionError):
+            with self.assertRaises(OSError):
                 await pr1.recv()
 
             tr1.close()

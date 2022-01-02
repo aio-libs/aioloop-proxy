@@ -115,12 +115,10 @@ class TestSubprocess(unittest.TestCase):
                 lambda: Proto(self), self.shell_cmd()
             )
             fd, data = await pr.recv()
-            self.assertEqual(fd, 1)
             self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"DATA\n")
             fd, data = await pr.recv()
-            self.assertEqual(fd, 1)
             self.assertEqual(data.strip(), b"ACK:DATA")
 
             tr.get_pipe_transport(0).write(b"EXIT:0\n")

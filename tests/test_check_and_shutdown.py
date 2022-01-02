@@ -1,5 +1,4 @@
 import asyncio
-import os
 import pathlib
 import re
 import signal
@@ -216,87 +215,87 @@ class TestCheckAndShutdown(unittest.TestCase):
 
     def test_readers(self):
         async def f():
-            rpipe, wpipe = os.pipe()
-            os.set_blocking(rpipe, False)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("127.0.0.1", 0))
+            sock.setblocking(False)
 
             def on_read():
                 pass
 
-            self.loop.add_reader(rpipe, on_read)
+            self.loop.add_reader(sock, on_read)
 
             with self.assertWarnsRegex(
-                ResourceWarning, re.escape(f"Unfinished reader {rpipe}")
+                ResourceWarning, re.escape(f"Unfinished reader {sock}")
             ):
                 await self.loop.check_and_shutdown()
 
-            self.assertFalse(self.loop.remove_reader(rpipe))
+            self.assertFalse(self.loop.remove_reader(sock))
 
-            os.close(rpipe)
-            os.close(wpipe)
+            sock.close()
 
         self.loop.run_until_complete(f())
 
     def test_readers_ignore(self):
         async def f():
-            rpipe, wpipe = os.pipe()
-            os.set_blocking(rpipe, False)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("127.0.0.1", 0))
+            sock.setblocking(False)
 
             def on_read():
                 pass
 
-            self.loop.add_reader(rpipe, on_read)
+            self.loop.add_reader(sock, on_read)
 
             await self.loop.check_and_shutdown(
                 kind=aioloop_proxy.CheckKind.TASKS  # not READERS
             )
 
-            self.assertFalse(self.loop.remove_reader(rpipe))
+            self.assertFalse(self.loop.remove_reader(sock))
 
-            os.close(rpipe)
-            os.close(wpipe)
+            sock.close()
 
         self.loop.run_until_complete(f())
 
     def test_writers(self):
         async def f():
-            rpipe, wpipe = os.pipe()
-            os.set_blocking(rpipe, False)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("127.0.0.1", 0))
+            sock.setblocking(False)
 
             def on_write():
                 pass
 
-            self.loop.add_writer(wpipe, on_write)
+            self.loop.add_writer(sock, on_write)
 
             with self.assertWarnsRegex(
-                ResourceWarning, re.escape(f"Unfinished writer {wpipe}")
+                ResourceWarning, re.escape(f"Unfinished writer {sock}")
             ):
                 await self.loop.check_and_shutdown()
 
-            self.assertFalse(self.loop.remove_writer(wpipe))
+            self.assertFalse(self.loop.remove_writer(sock))
 
-            os.close(rpipe)
-            os.close(wpipe)
+            sock.close()
 
         self.loop.run_until_complete(f())
 
     def test_writers_ignore(self):
         async def f():
-            rpipe, wpipe = os.pipe()
-            os.set_blocking(rpipe, False)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("127.0.0.1", 0))
+            sock.setblocking(False)
 
             def on_write():
                 pass
 
-            self.loop.add_writer(wpipe, on_write)
+            self.loop.add_writer(sock, on_write)
 
             await self.loop.check_and_shutdown(
                 kind=aioloop_proxy.CheckKind.TASKS  # not WRITERS
             )
 
-            self.assertFalse(self.loop.remove_writer(wpipe))
+            self.assertFalse(self.loop.remove_writer(sock))
 
-            os.close(rpipe)
-            os.close(wpipe)
+            sock.close()
 
         self.loop.run_until_complete(f())
 

@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 import enum
+import sys
 import threading
 import warnings
 import weakref
@@ -255,7 +256,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def create_task(self, coro, *, name=None):
         self._check_closed()
         if self._task_factory is None:
-            task = asyncio.Task(coro, loop=self, name=name)
+            if sys.version_info >= (3, 9):
+                task = asyncio.Task(coro, loop=self, name=name)
+            else:
+                task = asyncio.Task(coro, loop=self)
             if task._source_traceback:
                 del task._source_traceback[-1]
         else:

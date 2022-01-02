@@ -89,12 +89,12 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"DATA\n")
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"ACK:DATA\n")
+            self.assertEqual(data.strip(), b"ACK:DATA")
 
             tr.get_pipe_transport(0).write(b"EXIT:0\n")
 
@@ -116,12 +116,12 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"DATA\n")
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"ACK:DATA\n")
+            self.assertEqual(data.strip(), b"ACK:DATA")
 
             tr.get_pipe_transport(0).write(b"EXIT:0\n")
 
@@ -143,12 +143,12 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 2)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"DATA\n")
             fd, data = await pr.recv()
             self.assertEqual(fd, 2)
-            self.assertEqual(data, b"ACK:DATA\n")
+            self.assertEqual(data.strip(), b"ACK:DATA")
 
             tr.get_pipe_transport(0).write(b"EXIT:0\n")
 
@@ -170,13 +170,13 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"PID\n")
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
             child_pid = tr.get_pid()
-            self.assertEqual(data, f"PID:{child_pid}\n".encode("ascii"))
+            self.assertEqual(data.strip(), f"PID:{child_pid}".encode("ascii"))
 
             tr.get_pipe_transport(0).write(b"EXIT:0\n")
             await pr.exited
@@ -197,7 +197,7 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.get_pipe_transport(0).write(b"EXIT:1\n")
             await pr.exited
@@ -218,7 +218,7 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.send_signal(signal.SIGINT)
             await pr.exited
@@ -239,7 +239,7 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.terminate()
             await pr.exited
@@ -260,7 +260,7 @@ class TestSubprocess(unittest.TestCase):
             )
             fd, data = await pr.recv()
             self.assertEqual(fd, 1)
-            self.assertEqual(data, b"READY\n")
+            self.assertEqual(data.strip(), b"READY")
 
             tr.kill()
             await pr.exited

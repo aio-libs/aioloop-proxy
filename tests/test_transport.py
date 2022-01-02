@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import unittest
 from unittest.mock import Mock
 
@@ -44,6 +45,7 @@ class TestTransport(unittest.TestCase):
         transp = _make_transport_proxy(orig, self.loop)
         self.assertIs(transp.get_protocol(), prot)
 
+    @unittest.skipIf(sys.version_info < (3, 8), "call_args are buggy in Python 3.7")
     def test_set_protocol(self):
         orig = Mock(spec=asyncio.BaseTransport)
         prot = Mock(spec=asyncio.BaseProtocol)

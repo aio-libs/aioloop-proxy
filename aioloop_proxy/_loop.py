@@ -10,6 +10,7 @@ import weakref
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
+from ._task import Task
 from ._transport import _make_transport_proxy
 
 
@@ -26,6 +27,10 @@ class CheckKind(enum.Flag):
 
 
 class LoopProxy(asyncio.AbstractEventLoop):
+    # allows fast check for loop proxy,
+    # isinstance check is much slower
+    _proxy_loop_marker = True
+
     def __init__(self, parent) -> None:
         assert isinstance(parent, asyncio.AbstractEventLoop)
         self._parent = parent
@@ -285,7 +290,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         if self._task_factory is None:
             if sys.version_info >= (3, 9):
-                task = asyncio.Task(coro, loop=self, name=name)
+                task = Task(coro, loop=self, name=name)
             else:
                 # The name is ignored without a warning,
                 # like with a custom task factory

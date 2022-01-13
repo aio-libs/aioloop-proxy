@@ -30,7 +30,7 @@ class TestConcurrent(unittest.TestCase):
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_concurrent(self):
+    def test_concurrent_client_server(self):
         async def serve(reader, writer):
             # served by outer loop
             while True:
@@ -60,6 +60,33 @@ class TestConcurrent(unittest.TestCase):
 
         server.close()
         self.loop.run_until_complete(server.wait_closed())
+
+    def test_call_parent_async_function(self):
+        class Client:
+            # emulates typical async client
+            # that holds the current loop instance
+
+            def __init__(self):
+                self._loop = asyncio.get_running_loop()
+
+            async def call(self, value):
+                fut = self._loop.create_future()
+                self._loop.call_soon(fut.set_result, value)
+                return await fut
+
+        async def create_client():
+            return Client()
+
+        async def go(client):
+            ret = await client.call(1)
+            self.assertEqual(ret, 1)
+            return "done"
+
+        client = self.loop.run_until_complete(create_client())
+
+        with aioloop_proxy.proxy(self.loop) as proxy:
+            ret = proxy.run_until_complete(go(client))
+            self.assertEqual("done", ret)
 
 
 if __name__ == "__main__":

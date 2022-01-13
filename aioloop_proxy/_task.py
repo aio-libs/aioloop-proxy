@@ -573,6 +573,8 @@ class Future:
             raise RuntimeError("await wasn't used with future")
         return self.result()  # May raise too.
 
+    __iter__ = __await__
+
 
 class Task(Future):
     """A coroutine wrapped in a Future."""

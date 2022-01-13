@@ -8,7 +8,7 @@ import warnings
 import weakref
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
-from ._protocol import _proto_proxy, _proto_proxy_factory
+from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
 from ._transport import _make_transport_proxy
 
@@ -128,8 +128,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
             if original is not None:
                 proto = original.get_protocol()
                 if proto is not None:
-                    # transport is not fully closed
-                    await proto.wait_closed
+                    if isinstance(proto, _BaseProtocolProxy):
+                        # On Windows it can be SSLProtocol for some reason???
+                        await proto.wait_closed
         self._transports.clear()
 
         for fd, handle in list(self._readers.items()):

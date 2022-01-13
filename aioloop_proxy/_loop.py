@@ -112,18 +112,24 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._servers.clear()
 
         for transport in list(self._transports):
-            if transport.is_closing():
-                continue
-            if kind & CheckKind.TRANSPORTS:
-                warnings.warn(
-                    f"Unclosed transport {transport!r}", ResourceWarning, stacklevel=2
-                )
-            if isinstance(transport, asyncio.WriteTransport):
-                transport.abort()
-            else:
-                transport.close()
-            proto = transport._orig.get_protocol()
-            await proto.wait_closed
+            if not transport.is_closing():
+                # close if not closing yet
+                if kind & CheckKind.TRANSPORTS:
+                    warnings.warn(
+                        f"Unclosed transport {transport!r}",
+                        ResourceWarning,
+                        stacklevel=2,
+                    )
+                if isinstance(transport, asyncio.WriteTransport):
+                    transport.abort()
+                else:
+                    transport.close()
+            original = transport._orig
+            if original is not None:
+                proto = original.get_protocol()
+                if proto is not None:
+                    # transport is not fully closed
+                    await proto.wait_closed
         self._transports.clear()
 
         for fd, handle in list(self._readers.items()):

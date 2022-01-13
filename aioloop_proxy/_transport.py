@@ -29,7 +29,16 @@ class _BaseTransportProxy(asyncio.BaseTransport):
         return self._orig.set_protocol(_proto_proxy(protocol, self._loop))
 
     def get_protocol(self):
-        return self._orig.get_protocol().protocol
+        original = self._orig
+        if original is None:
+            # A possible situaton during the transport cleanup
+            return None
+        else:
+            orig_proto = original.get_protocol()
+            if orig_proto is None:
+                return None
+            else:
+                return orig_proto.protocol
 
 
 class _ReadTransportProxy(_BaseTransportProxy, asyncio.ReadTransport):

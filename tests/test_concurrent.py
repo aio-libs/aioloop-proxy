@@ -60,3 +60,7 @@ class TestConcurrent(unittest.TestCase):
 
         server.close()
         self.loop.run_until_complete(server.wait_closed())
+
+
+if __name__ == "__main__":
+    unittest.main()

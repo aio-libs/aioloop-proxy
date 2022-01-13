@@ -685,3 +685,7 @@ class TestUNIX(unittest.TestCase):
             )
 
         self.loop.run_until_complete(f())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -7,21 +7,313 @@
 
 import asyncio
 import contextvars
+import functools
 import inspect
 import itertools
+import linecache
 import logging
+import reprlib
 import sys
-from asyncio import base_futures, base_tasks, format_helpers
+import traceback
+from _thread import get_ident
 
 _task_name_counter = itertools.count(1).__next__
 
 
-_PENDING = base_futures._PENDING
-_CANCELLED = base_futures._CANCELLED
-_FINISHED = base_futures._FINISHED
-
+_PENDING = "PENDING"
+_CANCELLED = "CANCELLED"
+_FINISHED = "FINISHED"
 
 STACK_DEBUG = logging.DEBUG - 1  # heavy-duty debugging
+
+# Number of stack entries to capture in debug mode.
+# The larger the number, the slower the operation in debug mode
+# (see extract_stack() in format_helpers.py).
+DEBUG_STACK_DEPTH = 10
+
+# base_futures
+
+
+def _format_callbacks(cb):
+    """helper function for Future.__repr__"""
+    size = len(cb)
+    if not size:
+        cb = ""
+
+    def format_cb(callback):
+        return _format_callback_source(callback, ())
+
+    if size == 1:
+        cb = format_cb(cb[0][0])
+    elif size == 2:
+        cb = f"{format_cb(cb[0][0])}, {format_cb(cb[1][0])}"
+    elif size > 2:
+        cb = "{}, <{} more>, {}".format(
+            format_cb(cb[0][0]), size - 2, format_cb(cb[-1][0])
+        )
+    return f"cb=[{cb}]"
+
+
+# bpo-42183: _repr_running is needed for repr protection
+# when a Future or Task result contains itself directly or indirectly.
+# The logic is borrowed from @reprlib.recursive_repr decorator.
+# Unfortunately, the direct decorator usage is impossible because of
+# AttributeError: '_asyncio.Task' object has no attribute '__module__' error.
+#
+# After fixing this thing we can return to the decorator based approach.
+_repr_running = set()
+
+
+def _future_repr_info(future):
+    # (Future) -> str
+    """helper function for Future.__repr__"""
+    info = [future._state.lower()]
+    if future._state == _FINISHED:
+        if future._exception is not None:
+            info.append(f"exception={future._exception!r}")
+        else:
+            key = id(future), get_ident()
+            if key in _repr_running:
+                result = "..."
+            else:
+                _repr_running.add(key)
+                try:
+                    # use reprlib to limit the length of the output, especially
+                    # for very long strings
+                    result = reprlib.repr(future._result)
+                finally:
+                    _repr_running.discard(key)
+            info.append(f"result={result}")
+    if future._callbacks:
+        info.append(_format_callbacks(future._callbacks))
+    if future._source_traceback:
+        frame = future._source_traceback[-1]
+        info.append(f"created at {frame[0]}:{frame[1]}")
+    return info
+
+
+# base_tasks
+
+
+def _task_repr_info(task):
+    info = _future_repr_info(task)
+
+    if task._must_cancel:
+        # replace status
+        info[0] = "cancelling"
+
+    info.insert(1, "name=%r" % task.get_name())
+
+    coro = _format_coroutine(task._coro)
+    info.insert(2, f"coro=<{coro}>")
+
+    if task._fut_waiter is not None:
+        info.insert(3, f"wait_for={task._fut_waiter!r}")
+    return info
+
+
+def _task_get_stack(task, limit):
+    frames = []
+    if hasattr(task._coro, "cr_frame"):
+        # case 1: 'async def' coroutines
+        f = task._coro.cr_frame
+    elif hasattr(task._coro, "gi_frame"):
+        # case 2: legacy coroutines
+        f = task._coro.gi_frame
+    elif hasattr(task._coro, "ag_frame"):
+        # case 3: async generators
+        f = task._coro.ag_frame
+    else:
+        # case 4: unknown objects
+        f = None
+    if f is not None:
+        while f is not None:
+            if limit is not None:
+                if limit <= 0:
+                    break
+                limit -= 1
+            frames.append(f)
+            f = f.f_back
+        frames.reverse()
+    elif task._exception is not None:
+        tb = task._exception.__traceback__
+        while tb is not None:
+            if limit is not None:
+                if limit <= 0:
+                    break
+                limit -= 1
+            frames.append(tb.tb_frame)
+            tb = tb.tb_next
+    return frames
+
+
+def _task_print_stack(task, limit, file):
+    extracted_list = []
+    checked = set()
+    for f in task.get_stack(limit=limit):
+        lineno = f.f_lineno
+        co = f.f_code
+        filename = co.co_filename
+        name = co.co_name
+        if filename not in checked:
+            checked.add(filename)
+            linecache.checkcache(filename)
+        line = linecache.getline(filename, lineno, f.f_globals)
+        extracted_list.append((filename, lineno, name, line))
+
+    exc = task._exception
+    if not extracted_list:
+        print(f"No stack for {task!r}", file=file)
+    elif exc is not None:
+        print(f"Traceback for {task!r} (most recent call last):", file=file)
+    else:
+        print(f"Stack for {task!r} (most recent call last):", file=file)
+
+    traceback.print_list(extracted_list, file=file)
+    if exc is not None:
+        for line in traceback.format_exception_only(exc.__class__, exc):
+            print(line, file=file, end="")
+
+
+# format_helpers
+
+
+def _get_function_source(func):
+    func = inspect.unwrap(func)
+    if inspect.isfunction(func):
+        code = func.__code__
+        return (code.co_filename, code.co_firstlineno)
+    if isinstance(func, functools.partial):
+        return _get_function_source(func.func)
+    if isinstance(func, functools.partialmethod):
+        return _get_function_source(func.func)
+    return None
+
+
+def _format_callback_source(func, args):
+    func_repr = _format_callback(func, args, None)
+    source = _get_function_source(func)
+    if source:
+        func_repr += f" at {source[0]}:{source[1]}"
+    return func_repr
+
+
+def _format_args_and_kwargs(args, kwargs):
+    """Format function arguments and keyword arguments.
+
+    Special case for a single parameter: ('hello',) is formatted as ('hello').
+    """
+    # use reprlib to limit the length of the output
+    items = []
+    if args:
+        items.extend(reprlib.repr(arg) for arg in args)
+    if kwargs:
+        items.extend(f"{k}={reprlib.repr(v)}" for k, v in kwargs.items())
+    return "({})".format(", ".join(items))
+
+
+def _format_callback(func, args, kwargs, suffix=""):
+    if isinstance(func, functools.partial):
+        suffix = _format_args_and_kwargs(args, kwargs) + suffix
+        return _format_callback(func.func, func.args, func.keywords, suffix)
+
+    if hasattr(func, "__qualname__") and func.__qualname__:
+        func_repr = func.__qualname__
+    elif hasattr(func, "__name__") and func.__name__:
+        func_repr = func.__name__
+    else:
+        func_repr = repr(func)
+
+    func_repr += _format_args_and_kwargs(args, kwargs)
+    if suffix:
+        func_repr += suffix
+    return func_repr
+
+
+def extract_stack(f=None, limit=None):
+    # Replacement for traceback.extract_stack() that only does the
+    # necessary work for asyncio debug mode.
+    if f is None:
+        f = sys._getframe().f_back
+    if limit is None:
+        # Limit the amount of work to a reasonable amount, as extract_stack()
+        # can be called for each coroutine and future in debug mode.
+        limit = DEBUG_STACK_DEPTH
+    stack = traceback.StackSummary.extract(
+        traceback.walk_stack(f), limit=limit, lookup_lines=False
+    )
+    stack.reverse()
+    return stack
+
+
+# coroutines
+
+
+def _format_coroutine(coro):
+    assert asyncio.iscoroutine(coro)
+
+    def get_name(coro):
+        # Coroutines compiled with Cython sometimes don't have
+        # proper __qualname__ or __name__.  While that is a bug
+        # in Cython, asyncio shouldn't crash with an AttributeError
+        # in its __repr__ functions.
+        if hasattr(coro, "__qualname__") and coro.__qualname__:
+            coro_name = coro.__qualname__
+        elif hasattr(coro, "__name__") and coro.__name__:
+            coro_name = coro.__name__
+        else:
+            # Stop masking Cython bugs, expose them in a friendly way.
+            coro_name = f"<{type(coro).__name__} without __name__>"
+        return f"{coro_name}()"
+
+    def is_running(coro):
+        try:
+            return coro.cr_running
+        except AttributeError:
+            try:
+                return coro.gi_running
+            except AttributeError:
+                return False
+
+    coro_code = None
+    if hasattr(coro, "cr_code") and coro.cr_code:
+        coro_code = coro.cr_code
+    elif hasattr(coro, "gi_code") and coro.gi_code:
+        coro_code = coro.gi_code
+
+    coro_name = get_name(coro)
+
+    if not coro_code:
+        # Built-in types might not have __qualname__ or __name__.
+        if is_running(coro):
+            return f"{coro_name} running"
+        else:
+            return coro_name
+
+    coro_frame = None
+    if hasattr(coro, "gi_frame") and coro.gi_frame:
+        coro_frame = coro.gi_frame
+    elif hasattr(coro, "cr_frame") and coro.cr_frame:
+        coro_frame = coro.cr_frame
+
+    # If Cython's coroutine has a fake code object without proper
+    # co_filename -- expose that.
+    filename = coro_code.co_filename or "<empty co_filename>"
+
+    lineno = 0
+
+    if coro_frame is not None:
+        lineno = coro_frame.f_lineno
+        coro_repr = f"{coro_name} running at {filename}:{lineno}"
+
+    else:
+        lineno = coro_code.co_firstlineno
+        coro_repr = f"{coro_name} done, defined at {filename}:{lineno}"
+
+    return coro_repr
+
+
+# future
 
 
 class Future:
@@ -79,9 +371,9 @@ class Future:
             self._loop = loop
         self._callbacks = []
         if self._loop.get_debug():
-            self._source_traceback = format_helpers.extract_stack(sys._getframe(1))
+            self._source_traceback = extract_stack(sys._getframe(1))
 
-    _repr_info = base_futures._future_repr_info
+    _repr_info = _future_repr_info
 
     def __repr__(self):
         return "<{} {}>".format(self.__class__.__name__, " ".join(self._repr_info()))
@@ -281,6 +573,8 @@ class Future:
             raise RuntimeError("await wasn't used with future")
         return self.result()  # May raise too.
 
+    __iter__ = __await__
+
 
 class Task(Future):
     """A coroutine wrapped in a Future."""
@@ -336,7 +630,7 @@ class Task(Future):
         return cls
 
     def _repr_info(self):
-        return base_tasks._task_repr_info(self)
+        return _task_repr_info(self)
 
     def get_coro(self):
         return self._coro
@@ -374,7 +668,7 @@ class Task(Future):
         For reasons beyond our control, only one stack frame is
         returned for a suspended coroutine.
         """
-        return base_tasks._task_get_stack(self, limit)
+        return _task_get_stack(self, limit)
 
     def print_stack(self, *, limit=None, file=None):
         """Print the stack or traceback for this task's coroutine.
@@ -385,7 +679,7 @@ class Task(Future):
         to which the output is written; by default output is written
         to sys.stderr.
         """
-        return base_tasks._task_print_stack(self, limit, file)
+        return _task_print_stack(self, limit, file)
 
     def cancel(self, msg=None):
         """Request that this task cancel itself.

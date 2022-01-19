@@ -2,7 +2,6 @@ import asyncio
 import concurrent.futures
 import contextlib
 import enum
-import sys
 import threading
 import warnings
 import weakref
@@ -10,7 +9,7 @@ import weakref
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
-from ._task import Task
+from ._task import Future, Task
 from ._transport import _make_transport_proxy
 
 
@@ -281,7 +280,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return self._parent.time() + self._time_offset
 
     def create_future(self):
-        fut = asyncio.Future(loop=self)
+        fut = Future(loop=self)
         return fut
 
     # Method scheduling a coroutine object: create a task.
@@ -289,12 +288,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def create_task(self, coro, *, name=None):
         self._check_closed()
         if self._task_factory is None:
-            if sys.version_info >= (3, 9):
-                task = Task(coro, loop=self, name=name)
-            else:
-                # The name is ignored without a warning,
-                # like with a custom task factory
-                task = asyncio.Task(coro, loop=self)
+            task = Task(coro, loop=self, name=name)
             if task._source_traceback:
                 del task._source_traceback[-1]
         else:

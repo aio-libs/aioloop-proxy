@@ -123,6 +123,6 @@ jobs:
         name: aioloop-proxy
         github_token: ${{ secrets.GITHUB_TOKEN }}
         pypi_token: ${{ secrets.PYPI_API_TOKEN }}
-        version_file: aioloop-proxy/__init__.py
-        fix_issue_regex: "\n?\\s*`#(\\d+) <https://github.com/aio-libs/aioloop-proxy/issues/\\1>`_"
-        fix_issue_repl: " (#\\1)"
+        version_file: aioloop_proxy/__init__.py
+        fix_issue_regex: ":issue:`(\\d+)`"
+        fix_issue_repl: "(#\\1)"

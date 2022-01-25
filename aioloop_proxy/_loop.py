@@ -68,7 +68,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     # Proxy-specific API
 
-    def advance_time(self, offset):
+    def get_parent_loop(self) -> asyncio.AbstractEventLoop:
+        return self._parent
+
+    def advance_time(self, offset: float) -> None:
         self._time_offset += offset
         parent_loop = self._parent
         for timer in self._timers:
@@ -81,7 +84,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             parent = parent_loop.call_at(parent.when() - offset, timer._run)
             timer._set_parent(parent)
 
-    async def check_and_shutdown(self, kind=CheckKind.ALL):
+    async def check_and_shutdown(self, kind: CheckKind = CheckKind.ALL) -> None:
         for task in list(self._tasks):
             if task is self._root_task:
                 continue

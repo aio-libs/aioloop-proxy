@@ -14,6 +14,9 @@ class _BaseTransportProxy(asyncio.BaseTransport):
         self._loop = None
         self._orig = None
 
+    def __getattr__(self, name):
+        return getattr(self._orig, name)
+
     def get_extra_info(self, name, default=None):
         return self._orig.get_extra_info(name, default)
 
@@ -99,6 +102,8 @@ class _SubprocessTransportProxy(_BaseTransportProxy, asyncio.SubprocessTransport
 
     def get_pipe_transport(self, fd):
         transp = self._orig.get_pipe_transport(fd)
+        if transp is None:
+            return None
         return _make_transport_proxy(transp, self._loop)
 
     def send_signal(self, signal):

@@ -285,6 +285,16 @@ class TestSubprocess(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
+    def test_highlevel_api(self):
+        async def f():
+            """Starting a subprocess should be possible."""
+            proc = await asyncio.subprocess.create_subprocess_exec(
+                sys.executable, "--version", stdout=asyncio.subprocess.PIPE
+            )
+            await proc.communicate()
+
+        self.loop.run_until_complete(f())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,20 @@
 
 .. towncrier release notes start
 
+0.0.4 (2022-01-26)
+==================
+
+Features
+--------
+
+- Add ``proxy_loop.get_parent_loop()`` public method. (:issue:`9`)
+
+Bugfixes
+--------
+
+- Don't finalize already closed loop. (:issue:`8`)
+
+
 0.0.3 (2022-01-26)
 ==================
 

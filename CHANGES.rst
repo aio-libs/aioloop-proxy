@@ -9,3 +9,11 @@
     WARNING: Don't drop the next directive!
 
 .. towncrier release notes start
+
+0.0.3 (2022-01-26)
+==================
+
+Bugfixes
+--------
+
+- Fix subprocess transport when highlevel api (``asyncio.create_subprocess_exec()``) is used. (:issue:`7`)

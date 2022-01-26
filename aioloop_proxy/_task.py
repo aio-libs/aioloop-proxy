@@ -505,10 +505,9 @@ class Future(Generic[_R]):
         self.__log_traceback = False
         if self._exception is not None:
             raise self._exception
-        assert self._result is not None
-        return self._result
+        return self._result  # type: ignore[return-value]
 
-    def exception(self) -> BaseException:
+    def exception(self) -> Optional[BaseException]:
         """Return the exception that was set on this future.
 
         The exception (or None if no exception was set) is returned only if
@@ -522,7 +521,6 @@ class Future(Generic[_R]):
         if self._state != _FINISHED:
             raise asyncio.InvalidStateError("Exception is not set.")
         self.__log_traceback = False
-        assert self._exception is not None
         return self._exception
 
     def add_done_callback(

@@ -49,13 +49,13 @@ DEBUG_STACK_DEPTH = 10
 # base_futures
 
 
-def _format_callbacks(cb: Any) -> str:
+def _format_callbacks(cb: Any) -> Any:
     """helper function for Future.__repr__"""
     size = len(cb)
     if not size:
         cb = ""
 
-    def format_cb(callback: Any) -> str:
+    def format_cb(callback: Any) -> Any:
         return _format_callback_source(callback, ())
 
     if size == 1:
@@ -219,7 +219,7 @@ def _format_args_and_kwargs(args: Any, kwargs: Any) -> Any:
     Special case for a single parameter: ('hello',) is formatted as ('hello').
     """
     # use reprlib to limit the length of the output
-    items = []
+    items: List[Any] = []
     if args:
         items.extend(reprlib.repr(arg) for arg in args)
     if kwargs:
@@ -264,10 +264,10 @@ def extract_stack(f: Any = None, limit: Optional[int] = None) -> traceback.Stack
 # coroutines
 
 
-def _format_coroutine(coro: Any) -> str:
+def _format_coroutine(coro: Any) -> Any:
     assert asyncio.iscoroutine(coro)
 
-    def get_name(coro: Any) -> str:
+    def get_name(coro: Any) -> Any:
         # Coroutines compiled with Cython sometimes don't have
         # proper __qualname__ or __name__.  While that is a bug
         # in Cython, asyncio shouldn't crash with an AttributeError
@@ -281,7 +281,7 @@ def _format_coroutine(coro: Any) -> str:
             coro_name = f"<{type(coro).__name__} without __name__>"
         return f"{coro_name}()"
 
-    def is_running(coro: Any) -> str:
+    def is_running(coro: Any) -> Any:
         try:
             return coro.cr_running
         except AttributeError:
@@ -291,10 +291,10 @@ def _format_coroutine(coro: Any) -> str:
                 return False
 
     coro_code = None
-    if hasattr(coro, "cr_code") and coro.cr_code:
+    if hasattr(coro, "cr_code") and coro.cr_code:  # type: ignore
         coro_code = coro.cr_code
-    elif hasattr(coro, "gi_code") and coro.gi_code:
-        coro_code = coro.gi_code
+    elif hasattr(coro, "gi_code") and coro.gi_code:  # type: ignore
+        coro_code = coro.gi_code  # type: ignore
 
     coro_name = get_name(coro)
 
@@ -306,9 +306,9 @@ def _format_coroutine(coro: Any) -> str:
             return coro_name
 
     coro_frame = None
-    if hasattr(coro, "gi_frame") and coro.gi_frame:
-        coro_frame = coro.gi_frame
-    elif hasattr(coro, "cr_frame") and coro.cr_frame:
+    if hasattr(coro, "gi_frame") and coro.gi_frame:  # type: ignore
+        coro_frame = coro.gi_frame  # type: ignore
+    elif hasattr(coro, "cr_frame") and coro.cr_frame:  # type: ignore
         coro_frame = coro.cr_frame
 
     # If Cython's coroutine has a fake code object without proper
@@ -352,13 +352,13 @@ class Future(Generic[_R]):
 
     # Class variables serving as defaults for instance variables.
     _state = _PENDING
-    _result = None
-    _exception = None
-    _loop = None
-    _source_traceback = None
-    _cancel_message = None
+    _result: Optional[_R] = None
+    _exception: Optional[BaseException] = None
+    _loop: Optional[asyncio.AbstractEventLoop] = None
+    _source_traceback: Any = None
+    _cancel_message: Any = None
     # A saved CancelledError for later chaining as an exception context.
-    _cancelled_exc = None
+    _cancelled_exc: Any = None
 
     # This field is used for a dual purpose:
     # - Its presence is a marker to declare that a class implements
@@ -381,16 +381,17 @@ class Future(Generic[_R]):
         the default event loop.
         """
         if loop is None:
-            self._loop = asyncio._get_event_loop()
+            self._loop = asyncio._get_event_loop()  # type: ignore
         else:
             self._loop = loop
-        self._callbacks = []
-        if self._loop.get_debug():
+        self._callbacks: List[Any] = []
+        if self._loop.get_debug():  # type: ignore
             self._source_traceback = extract_stack(sys._getframe(1))
 
-    _repr_info = _future_repr_info
+    def _repr_info(self) -> List[Any]:
+        return _future_repr_info(self)
 
-    def __repr__(self) -> None:
+    def __repr__(self) -> str:
         return "<{} {}>".format(self.__class__.__name__, " ".join(self._repr_info()))
 
     def __del__(self) -> None:
@@ -406,7 +407,7 @@ class Future(Generic[_R]):
         }
         if self._source_traceback:
             context["source_traceback"] = self._source_traceback
-        self._loop.call_exception_handler(context)
+        self._loop.call_exception_handler(context)  # type: ignore
 
     def __class_getitem__(cls, arg: Any) -> Any:
         if sys.version_info >= (3, 9):
@@ -473,7 +474,7 @@ class Future(Generic[_R]):
 
         self._callbacks[:] = []
         for callback, ctx in callbacks:
-            self._loop.call_soon(callback, self, context=ctx)
+            self._loop.call_soon(callback, self, context=ctx)  # type: ignore
 
     def cancelled(self) -> bool:
         """Return True if the future was cancelled."""
@@ -504,6 +505,7 @@ class Future(Generic[_R]):
         self.__log_traceback = False
         if self._exception is not None:
             raise self._exception
+        assert self._result is not None
         return self._result
 
     def exception(self) -> BaseException:
@@ -520,6 +522,7 @@ class Future(Generic[_R]):
         if self._state != _FINISHED:
             raise asyncio.InvalidStateError("Exception is not set.")
         self.__log_traceback = False
+        assert self._exception is not None
         return self._exception
 
     def add_done_callback(
@@ -535,7 +538,7 @@ class Future(Generic[_R]):
         scheduled with call_soon.
         """
         if self._state != _PENDING:
-            self._loop.call_soon(fn, self, context=context)
+            self._loop.call_soon(fn, self, context=context)  # type: ignore
         else:
             if context is None:
                 context = contextvars.copy_context()
@@ -543,7 +546,7 @@ class Future(Generic[_R]):
 
     # New method not in PEP 3148.
 
-    def remove_done_callback(self, fn: "Callable[[Future[_R]], None]") -> None:
+    def remove_done_callback(self, fn: "Callable[[Future[_R]], None]") -> int:
         """Remove all instances of a callback from the "call when done" list.
 
         Returns the number of callbacks removed.
@@ -637,12 +640,12 @@ class Task(Future[_R]):
             self._name = str(name)
 
         self._must_cancel = False
-        self._fut_waiter = None
+        self._fut_waiter: "Optional[asyncio.Future[Any]]" = None
         self._coro = coro
         self._context = contextvars.copy_context()
 
-        self._loop.call_soon(self.__step, context=self._context)
-        asyncio._register_task(self)
+        self._loop.call_soon(self.__step, context=self._context)  # type: ignore
+        asyncio._register_task(self)  # type: ignore
 
     def __del__(self) -> None:
         if self._state == _PENDING and self._log_destroy_pending:
@@ -652,10 +655,10 @@ class Task(Future[_R]):
             }
             if self._source_traceback:
                 context["source_traceback"] = self._source_traceback
-            self._loop.call_exception_handler(context)
+            self._loop.call_exception_handler(context)  # type: ignore
         super().__del__()
 
-    def _repr_info(self) -> List[str]:
+    def _repr_info(self) -> List[str]:  #
         return _task_repr_info(self)
 
     def get_coro(self) -> Awaitable[_R]:
@@ -751,7 +754,7 @@ class Task(Future[_R]):
         coro = self._coro
         self._fut_waiter = None
 
-        asyncio._enter_task(self._loop, self)
+        asyncio._enter_task(self._loop, self)  # type: ignore
         # Call either coro.throw(exc) or coro.send(None).
         try:
             if exc is None:
@@ -785,11 +788,11 @@ class Task(Future[_R]):
                         f"Task {self!r} got Future "
                         f"{result!r} attached to a different loop"
                     )
-                    self._loop.call_soon(self.__step, new_exc, context=self._context)
+                    self._loop.call_soon(self.__step, new_exc, context=self._context)  # type: ignore # noqa
                 elif blocking:
                     if result is self:
                         new_exc = RuntimeError(f"Task cannot await on itself: {self!r}")
-                        self._loop.call_soon(
+                        self._loop.call_soon(  # type: ignore
                             self.__step, new_exc, context=self._context
                         )
                     else:
@@ -804,25 +807,25 @@ class Task(Future[_R]):
                         f"yield was used instead of yield from "
                         f"in task {self!r} with {result!r}"
                     )
-                    self._loop.call_soon(self.__step, new_exc, context=self._context)
+                    self._loop.call_soon(self.__step, new_exc, context=self._context)  # type: ignore # noqa
 
             elif result is None:
                 # Bare yield relinquishes control for one event loop iteration.
-                self._loop.call_soon(self.__step, context=self._context)
+                self._loop.call_soon(self.__step, context=self._context)  # type: ignore # noqa
             elif inspect.isgenerator(result):
                 # Yielding a generator is just wrong.
                 new_exc = RuntimeError(
                     f"yield was used instead of yield from for "
                     f"generator in task {self!r} with {result!r}"
                 )
-                self._loop.call_soon(self.__step, new_exc, context=self._context)
+                self._loop.call_soon(self.__step, new_exc, context=self._context)  # type: ignore # noqa
             else:
                 # Yielding something else is an error.
                 new_exc = RuntimeError(f"Task got bad yield: {result!r}")
-                self._loop.call_soon(self.__step, new_exc, context=self._context)
+                self._loop.call_soon(self.__step, new_exc, context=self._context)  # type: ignore # noqa
         finally:
-            asyncio._leave_task(self._loop, self)
-            self = None  # Needed to break cycles when an exception occurs.
+            asyncio._leave_task(self._loop, self)  # type: ignore[attr-defined]
+            self = None  # type: ignore # Needed to break cycles when exception occurs.
 
     def __wakeup(self, future: Future[_R]) -> None:
         try:
@@ -838,7 +841,7 @@ class Task(Future[_R]):
             # instead of `__next__()`, which is slower for futures
             # that return non-generator iterators from their `__iter__`.
             self.__step()
-        self = None  # Needed to break cycles when an exception occurs.
+        self = None  # type: ignore # Needed to break cycles when an exception occurs.
 
     def _check_loop(self, fut: Future[_R]) -> bool:
         fut_loop = fut.get_loop()
@@ -847,7 +850,7 @@ class Task(Future[_R]):
             if fut_loop is loop:
                 return True
             if getattr(loop, "_proxy_loop_marker", False):
-                loop = loop._parent
+                loop = loop._parent  # type: ignore[attr-defined]
             else:
                 loop = None
         return False

@@ -1,10 +1,14 @@
+import asyncio
 import contextlib
+from typing import Iterator
 
 from ._loop import CheckKind, LoopProxy
 
 
 @contextlib.contextmanager
-def proxy(loop, *, kind=CheckKind.ALL):
+def proxy(
+    loop: asyncio.AbstractEventLoop, *, kind: CheckKind = CheckKind.ALL
+) -> Iterator[LoopProxy]:
     proxy_loop = LoopProxy(loop)
     debug = loop.get_debug()
     exception_handler = loop.get_exception_handler()

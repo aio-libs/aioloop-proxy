@@ -235,7 +235,7 @@ class TestCheckAndShutdown(unittest.TestCase):
             self.loop.add_reader(sock, on_read)
 
             with self.assertWarnsRegex(
-                ResourceWarning, re.escape(f"Unfinished reader {sock}")
+                ResourceWarning, re.escape(f"Unfinished reader {sock.fileno()}")
             ):
                 await self.loop.check_and_shutdown()
 
@@ -280,7 +280,7 @@ class TestCheckAndShutdown(unittest.TestCase):
             self.loop.add_writer(sock, on_write)
 
             with self.assertWarnsRegex(
-                ResourceWarning, re.escape(f"Unfinished writer {sock}")
+                ResourceWarning, re.escape(f"Unfinished writer {sock.fileno()}")
             ):
                 await self.loop.check_and_shutdown()
 

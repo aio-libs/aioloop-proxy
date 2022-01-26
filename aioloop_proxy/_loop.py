@@ -430,7 +430,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     async def getaddrinfo(  # type: ignore[override]
         self, host: Optional[str], port: Union[int, str, None], **kwargs: Any
-    ) -> List[Tuple[int, int, int, str, Tuple[str, int] | Tuple[str, int, int, int]]]:
+    ) -> List[
+        Tuple[int, int, int, str, Union[Tuple[str, int], Tuple[str, int, int, int]]]
+    ]:
         self._check_closed()
         return await self._wrap_async(
             self._parent.getaddrinfo(  # type: ignore[arg-type]

@@ -405,7 +405,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def run_in_executor(
         self, executor: Any, func: Callable[..., _R], *args: Any
-    ) -> asyncio.Future[_R]:
+    ) -> "asyncio.Future[_R]":
         self._check_closed()
         if executor is None:
             executor = self._default_executor

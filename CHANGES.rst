@@ -10,6 +10,15 @@
 
 .. towncrier release notes start
 
+0.0.5 (2022-01-26)
+==================
+
+Features
+--------
+
+- Add type hints. (:issue:`11`)
+
+
 0.0.4 (2022-01-26)
 ==================
 

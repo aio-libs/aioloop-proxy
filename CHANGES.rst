@@ -10,6 +10,12 @@
 
 .. towncrier release notes start
 
+0.0.6 (2022-01-26)
+==================
+
+No significant changes.
+
+
 0.0.5 (2022-01-26)
 ==================
 

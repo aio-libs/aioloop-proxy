@@ -38,6 +38,7 @@ ENV/
 MANIFEST
 __pycache__/
 __pypackages__/
+aioloop_proxy/_version.py
 build/
 celerybeat-schedule
 celerybeat.pid

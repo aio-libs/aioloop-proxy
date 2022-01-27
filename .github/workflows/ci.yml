@@ -115,6 +115,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install -U pip build
+    - name: Install itself
+      run: |
+        pip install -e .
     - name: Make dists
       run: |
         python -m build

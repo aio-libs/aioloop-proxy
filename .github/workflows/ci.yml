@@ -125,6 +125,6 @@ jobs:
         name: aioloop-proxy
         github_token: ${{ secrets.GITHUB_TOKEN }}
         pypi_token: ${{ secrets.PYPI_API_TOKEN }}
-        version_file: aioloop_proxy/__init__.py
+        version_file: aioloop_proxy/_version.py
         fix_issue_regex: ":issue:`(\\d+)`"
         fix_issue_repl: "(#\\1)"

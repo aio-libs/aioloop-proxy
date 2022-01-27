@@ -74,6 +74,9 @@ jobs:
       uses: py-actions/py-dependency-install@v3
       with:
         path: requirements.txt
+    - name: Install itself
+      run: |
+        pip install -e .
     - name: Run unittests
       run: |
         make cov

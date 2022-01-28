@@ -22,6 +22,12 @@ No significant changes.
 No significant changes.
 
 
+0.0.7 (2022-01-28)
+==================
+
+No significant changes.
+
+
 0.0.6 (2022-01-26)
 ==================
 

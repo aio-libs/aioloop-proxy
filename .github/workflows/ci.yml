@@ -119,7 +119,7 @@ jobs:
       run: |
         python -m build
     - name: Release
-      uses: aio-libs/create-release@v1.6.3
+      uses: aio-libs/create-release@v1.6.4
       with:
         changes_file: CHANGES.rst
         name: aioloop-proxy

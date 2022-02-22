@@ -30,7 +30,6 @@ from typing import (
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
-from ._task import Future, Task
 from ._transport import _BaseTransportProxy, _make_transport_proxy
 
 if sys.version_info >= (3, 8):
@@ -92,7 +91,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._timers: Set[_ProxyTimerHandle] = set()
         self._readers: Dict[int, asyncio.Handle] = {}
         self._writers: Dict[int, asyncio.Handle] = {}
-        self._tasks: "weakref.WeakSet[Task[Any]]" = weakref.WeakSet()
+        self._tasks: "weakref.WeakSet[asyncio.Task[Any]]" = weakref.WeakSet()
         self._transports: "weakref.WeakSet[_BaseTransportProxy]" = weakref.WeakSet()
         self._servers: "weakref.WeakSet[_ServerProxy]" = weakref.WeakSet()
         self._signals: Dict[int, asyncio.Handle] = {}
@@ -144,7 +143,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     async def check_and_shutdown(self, kind: CheckKind = CheckKind.ALL) -> None:
         for task in list(self._tasks):
-            if task is self._root_task:  # type: ignore
+            if task is self._root_task:
                 continue
             if task.done():
                 continue
@@ -301,7 +300,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         finally:
             thread.join()
 
-    def _do_shutdown(self, future: Future[Any]) -> None:
+    def _do_shutdown(self, future: asyncio.Future[Any]) -> None:
         try:
             self._default_executor.shutdown(wait=True)
             self.call_soon_threadsafe(future.set_result, None)
@@ -360,7 +359,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return self._parent.time() + self._time_offset
 
     def create_future(self) -> "asyncio.Future[Any]":
-        return Future(loop=self)  # type: ignore[return-value]
+        return asyncio.Future(loop=self)
 
     # Method scheduling a coroutine object: create a task.
 
@@ -372,9 +371,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
     ) -> "asyncio.Task[_R]":
         self._check_closed()
         if self._task_factory is None:
-            task = Task(coro, loop=self, name=name)
-            if task._source_traceback:
-                del task._source_traceback[-1]
+            task = asyncio.Task(coro, loop=self, name=name)
+            if task._source_traceback:  # type: ignore
+                del task._source_traceback[-1]  # type: ignore
         else:
             task = self._task_factory(self, coro)  # type: ignore
             if name is not None:
@@ -385,7 +384,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 else:
                     set_name(name)
         self._tasks.add(task)
-        return task  # type: ignore[return-value]
+        return task
 
     # Methods for interacting with threads.
 
@@ -838,15 +837,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
             asyncio._set_running_loop(loop)
 
     def _wrap_async(
-        self, coro_or_future: Union[Awaitable[_R], Coroutine[Any, Any, _R]]
-    ) -> "asyncio.Future[_R]":
-        # Private API calls are OK here
-        loop = asyncio._get_running_loop()
-        assert loop is None or loop is self
-        fut = self.create_future()
-        inner_fut = asyncio.ensure_future(coro_or_future, loop=self._parent)
-        self._chain_future(fut, inner_fut)
-        return fut
+        self,
+        coro_or_future: Union[Awaitable[_R], Coroutine[asyncio.Future[Any], None, _R]],
+    ) -> "Awaitable[_R]":
+        loop = asyncio.get_running_loop()
+        assert loop is self
+        return _Awaitable(coro_or_future, self)
 
     def _chain_future(
         self,
@@ -870,3 +866,51 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
         target.add_done_callback(_call_check_cancel)
         source.add_done_callback(_call_set_state)
+
+
+def ancestor(awaitable: Awaitable[_R]) -> Awaitable[_R]:
+    """Await an async object bound to ancestor event loop.
+
+    If 'awaitable' belongs to ancestor (parent, grandparent, etc.) even loop
+    it's awaiting fails because of Task loop compliance check.
+
+    This helpers allows such things by careful loop switching.
+
+    'awaitable' could be future, task, or a coroutine (async function call)
+    """
+    loop = asyncio.get_running_loop()
+    if not isinstance(loop, LoopProxy):
+        raise RuntimeError("The current loop should be LoopProxy")
+    return _Awaitable(awaitable, loop)
+
+
+class _Awaitable(Awaitable[_R]):
+    def __init__(self, coro: Awaitable[_R], loop: LoopProxy) -> None:
+        self._coro = coro
+        self._loop = loop
+
+    def __repr__(self) -> str:
+        return f"<Awaitable proxy for {self._coro}>"
+
+    def __await__(self) -> Generator[asyncio.Future[Any], None, _R]:
+        it = self._coro.__await__()
+        loop = self._loop
+        # don't use 'for' loop, re-raise StopIteration to parent as is.
+        try:
+            while True:
+                parent_fut = next(it)
+                if parent_fut is None:
+                    yield  # sleep(0) support
+                    continue
+                assert asyncio.isfuture(parent_fut)
+                if parent_fut.done():
+                    return parent_fut.result()
+                elif parent_fut.get_loop() is loop:
+                    yield parent_fut
+                else:
+                    fut = loop.create_future()
+                    loop._chain_future(fut, parent_fut)
+                    fut._asyncio_future_blocking = True
+                    yield fut
+        except StopIteration as exc:
+            return exc.value

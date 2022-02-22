@@ -78,7 +78,7 @@ class TestConcurrent(unittest.TestCase):
             return Client()
 
         async def go(client):
-            ret = await client.call(1)
+            ret = await aioloop_proxy.ancestor(client.call(1))
             self.assertEqual(ret, 1)
             return "done"
 

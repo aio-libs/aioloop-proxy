@@ -1,5 +1,5 @@
 coverage==6.3
 mypy==0.931
 pre-commit==2.17.0
-towncrier==21.9.0rc1
+towncrier==22.8.0
 trustme==0.9.0

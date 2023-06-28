@@ -1,20 +1,20 @@
 minimum_pre_commit_version: 2.16.0
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: 'v4.0.1'
+  rev: 'v4.4.0'
   hooks:
   - id: check-merge-conflict
     exclude: "rst$"
 - repo: https://github.com/asottile/yesqa
-  rev: v1.3.0
+  rev: v1.5.0
   hooks:
   - id: yesqa
 - repo: https://github.com/aio-libs/sort-all
-  rev: v1.1.0
+  rev: v1.2.0
   hooks:
   - id: sort-all
 - repo: https://github.com/Zac-HD/shed
-  rev: 0.6.0
+  rev: 2023.5.2
   hooks:
   - id: shed
     args:
@@ -25,7 +25,7 @@ repos:
     - markdown
     - rst
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: 'v4.0.1'
+  rev: 'v4.4.0'
   hooks:
   - id: check-case-conflict
   - id: check-json
@@ -46,14 +46,14 @@ repos:
         neuro-sdk/docs/spelling_wordlist.txt
       )$
 - repo: https://github.com/PyCQA/flake8
-  rev: '4.0.1'
+  rev: '6.0.0'
   hooks:
   - id: flake8
     additional_dependencies:
       - flake8-docstrings==1.6.0
     exclude: "^docs/"
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.6.8
+  rev: v1.6.25
   hooks:
   - id: actionlint-docker
     args:
@@ -64,7 +64,7 @@ repos:
     - -ignore
     - 'SC1004:'
 - repo: https://github.com/sirosen/check-jsonschema
-  rev: 0.9.1
+  rev: 0.23.2
   hooks:
   - id: check-github-actions
 ci:

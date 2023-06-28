@@ -5,7 +5,6 @@ import contextvars
 import enum
 import socket
 import ssl
-import sys
 import threading
 import warnings
 import weakref
@@ -19,6 +18,7 @@ from typing import (
     Generator,
     List,
     Optional,
+    Protocol,
     Sequence,
     Set,
     Tuple,
@@ -33,12 +33,8 @@ from ._server import _ServerProxy
 from ._task import Future, Task
 from ._transport import _BaseTransportProxy, _make_transport_proxy
 
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
-
 _R = TypeVar("_R")
+
 
 # stable
 class _HasFileno(Protocol):
@@ -55,7 +51,7 @@ _ExceptionContext = Dict[str, Any]
 _ExceptionHandler = Callable[[asyncio.AbstractEventLoop, _ExceptionContext], Any]
 _ProtocolT = TypeVar("_ProtocolT", bound=asyncio.BaseProtocol)
 _ProtocolFactory = Callable[[], asyncio.BaseProtocol]
-_SSLContext = Union[bool, None, ssl.SSLContext]
+_SSLContext = Union[bool, ssl.SSLContext, None]
 _TransProtPair = Tuple[asyncio.BaseTransport, asyncio.BaseProtocol]
 
 
@@ -471,7 +467,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     async def create_server(  # type: ignore[override]
         self,
         protocol_factory: Callable[[], _ProtocolT],
-        host: Optional[Union[str, Sequence[str]]] = None,
+        host: Union[str, Sequence[str], None] = None,
         port: Optional[int] = None,
         **kwargs: Any,
     ) -> asyncio.AbstractServer:

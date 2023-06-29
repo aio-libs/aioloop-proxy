@@ -72,6 +72,7 @@ jobs:
       with:
         path: requirements.txt
     - name: Run mypy
+      if: ${{ matrix.os }} == 'ubuntu'
       run: |
         make mypy
     - name: Run unittests

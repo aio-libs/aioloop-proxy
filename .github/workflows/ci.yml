@@ -35,12 +35,9 @@ jobs:
       uses: py-actions/py-dependency-install@v4
       with:
         path: requirements.txt
-    - name: Install itself
-      run: |
-        pip install -e .
     - name: Run linter
       run: |
-        make lint
+        make pre-commit
 
   test:
     name: Test
@@ -73,9 +70,9 @@ jobs:
       uses: py-actions/py-dependency-install@v4
       with:
         path: requirements.txt
-    - name: Install itself
+    - name: Run mypy
       run: |
-        pip install -e .
+        make mypy
     - name: Run unittests
       run: |
         make cov

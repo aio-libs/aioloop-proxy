@@ -4,13 +4,14 @@ install:
 	pip install -e .
 	pre-commit install
 
-lint:
+lint: pre-commit mypy
+
+pre-commit:
 ifdef CI
 	pre-commit run --all-files --show-diff-on-failure
 else
 	pre-commit run --all-files
 endif
-	mypy
 
 mypy:
 	mypy

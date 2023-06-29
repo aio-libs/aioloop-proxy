@@ -39,6 +39,41 @@ jobs:
       run: |
         make pre-commit
 
+  mypy:
+    name: Mypy
+    strategy:
+      matrix:
+        pyver: ['3.8', '3.9', '3.10', '3.11', '3.12-dev']
+      fail-fast: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Setup Python ${{ matrix.pyver }}
+      uses: actions/setup-python@v4.6.1
+      with:
+        python-version: ${{ matrix.pyver }}
+    - name: Get pip cache dir
+      id: pip-cache
+      shell: bash
+      run: |
+        echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"    # - name: Cache
+    - name: Cache PyPI
+      uses: actions/cache@v3.3.1
+      with:
+        key: pip-ci-${{ runner.os }}-${{ matrix.pyver }}-${{ hashFiles('setup.cfg', 'requirements.txt') }}
+        path: ${{ steps.pip-cache.outputs.dir }}
+        restore-keys: |
+            pip-ci-${{ runner.os }}-${{ matrix.pyver }}-
+    - name: Install dependencies
+      uses: py-actions/py-dependency-install@v4
+      with:
+        path: requirements.txt
+    - name: Run mypy
+      run: |
+        make mypy
+
   test:
     name: Test
     strategy:
@@ -71,10 +106,6 @@ jobs:
       uses: py-actions/py-dependency-install@v4
       with:
         path: requirements.txt
-    - name: Run mypy
-      if: ${{ matrix.os }} == 'ubuntu'
-      run: |
-        make mypy
     - name: Run unittests
       run: |
         make cov
@@ -84,11 +115,11 @@ jobs:
     - name: Upload coverage artifact
       uses: aio-libs/prepare-coverage@v21.9.1
       with:
-        key: e2e-${{ matrix.pyver }}-${{ matrix.os }}
+        key: ${{ matrix.pyver }}-${{ matrix.os }}
 
   check:
     name: Test matrix status
-    needs: [lint, test]
+    needs: [lint, test, mypy]
     runs-on: ubuntu-latest
     if: always()
     steps:

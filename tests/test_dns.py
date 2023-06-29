@@ -1,19 +1,21 @@
 import asyncio
 import socket
 import unittest
+from typing import Optional, Tuple
 
 import aioloop_proxy
 
-_loop = None
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
-def setUpModule():
+def setUpModule() -> None:
     global _loop
     _loop = asyncio.new_event_loop()
 
 
-def tearDownModule():
+def tearDownModule() -> None:
     global _loop
+    assert _loop is not None
     if hasattr(_loop, "shutdown_default_executor"):
         _loop.run_until_complete(_loop.shutdown_default_executor())
     _loop.run_until_complete(_loop.shutdown_asyncgens())
@@ -22,17 +24,18 @@ def tearDownModule():
 
 
 class TestDNS(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
+        assert _loop is not None
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if not self.loop.is_closed():
             self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_getaddrinfo(self):
-        async def f():
+    def test_getaddrinfo(self) -> None:
+        async def f() -> None:
             addr = await self.loop.getaddrinfo(
                 "example.org", 80, proto=socket.IPPROTO_TCP
             )
@@ -42,13 +45,13 @@ class TestDNS(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_getnameinfo(self):
-        async def f():
+    def test_getnameinfo(self) -> None:
+        async def f() -> None:
             info = await self.loop.getnameinfo(addr, 0)
             self.assertEqual(info, expected)
 
         addrs = socket.getaddrinfo("example.org", 80, proto=socket.IPPROTO_TCP)
-        addr = tuple(addrs[0][4][:2])
+        addr: Tuple[str, int] = tuple(addrs[0][4][:2])  # type: ignore[assignment]
         expected = socket.getnameinfo(addr, 0)
 
         self.loop.run_until_complete(f())

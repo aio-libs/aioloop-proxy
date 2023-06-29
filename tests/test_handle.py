@@ -1,18 +1,20 @@
 import asyncio
 import unittest
+from typing import Optional
 
 import aioloop_proxy
 
-_loop = None
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
-def setUpModule():
+def setUpModule() -> None:
     global _loop
     _loop = asyncio.new_event_loop()
 
 
-def tearDownModule():
+def tearDownModule() -> None:
     global _loop
+    assert _loop is not None
     if hasattr(_loop, "shutdown_default_executor"):
         _loop.run_until_complete(_loop.shutdown_default_executor())
     _loop.run_until_complete(_loop.shutdown_asyncgens())
@@ -20,18 +22,20 @@ def tearDownModule():
     _loop = None
 
 
-class TestHandleBase:
-    def setUp(self):
+class TestHandleNonDebug(unittest.TestCase):
+    def setUp(self) -> None:
+        assert _loop is not None
         self.loop = aioloop_proxy.LoopProxy(_loop)
+        self.loop.set_debug(False)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if not self.loop.is_closed():
             self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_call_soon(self):
-        async def f():
+    def test_call_soon(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
             handle = self.loop.call_soon(fut.set_result, None)
             self.assertFalse(handle.cancelled())
@@ -41,8 +45,8 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_soon_threadsafe(self):
-        async def f():
+    def test_call_soon_threadsafe(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
             handle = self.loop.call_soon_threadsafe(fut.set_result, None)
             self.assertFalse(handle.cancelled())
@@ -52,11 +56,11 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_soon_check_loop(self):
-        async def f():
+    def test_call_soon_check_loop(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 self.assertIs(asyncio.get_running_loop(), self.loop)
                 called = True
@@ -69,11 +73,11 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_cancel(self):
-        async def f():
+    def test_cancel(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
@@ -85,11 +89,11 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_cancel_after_execution(self):
-        async def f():
+    def test_cancel_after_execution(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
@@ -102,26 +106,26 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_cancel_parent(self):
-        async def f():
+    def test_cancel_parent(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
             handle = self.loop.call_soon(cb)
-            handle._parent.cancel()
+            handle._parent.cancel()  # type: ignore[attr-defined]
             self.assertTrue(handle.cancelled())
             self.assertFalse(called)
 
         self.loop.run_until_complete(f())
 
-    def test_cancel_twice(self):
-        async def f():
+    def test_cancel_twice(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
@@ -134,8 +138,8 @@ class TestHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_keep_internal_reference(self):
-        async def f():
+    def test_keep_internal_reference(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
             self.loop.call_soon(fut.set_result, None)
             res = await fut
@@ -144,30 +148,26 @@ class TestHandleBase:
         self.loop.run_until_complete(f())
 
 
-class TestHandleNonDebug(TestHandleBase, unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.loop.set_debug(False)
-
-
-class TestHandleDebug(TestHandleBase, unittest.TestCase):
-    def setUp(self):
+class TestHandleDebug(TestHandleNonDebug):
+    def setUp(self) -> None:
         super().setUp()
         self.loop.set_debug(True)
 
 
-class TestTimerHandleBase:
-    def setUp(self):
+class TestTimeHandleNonDebug(unittest.TestCase):
+    def setUp(self) -> None:
+        assert _loop is not None
         self.loop = aioloop_proxy.LoopProxy(_loop)
+        self.loop.set_debug(False)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if not self.loop.is_closed():
             self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_call_later(self):
-        async def f():
+    def test_call_later(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
             handle = self.loop.call_later(0.1, fut.set_result, None)
             self.assertFalse(handle.cancelled())
@@ -181,11 +181,11 @@ class TestTimerHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_later_check_loop(self):
-        async def f():
+    def test_call_later_check_loop(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
 
-            def cb():
+            def cb() -> None:
                 self.assertIs(asyncio.get_running_loop(), self.loop)
                 fut.set_result(None)
 
@@ -196,11 +196,11 @@ class TestTimerHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_later_cancel(self):
-        async def f():
+    def test_call_later_cancel(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
@@ -212,8 +212,8 @@ class TestTimerHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_at(self):
-        async def f():
+    def test_call_at(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
             t0 = self.loop.time()
             handle = self.loop.call_at(t0 + 0.1, fut.set_result, None)
@@ -226,11 +226,11 @@ class TestTimerHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_at_check_loop(self):
-        async def f():
+    def test_call_at_check_loop(self) -> None:
+        async def f() -> None:
             fut = self.loop.create_future()
 
-            def cb():
+            def cb() -> None:
                 self.assertIs(asyncio.get_running_loop(), self.loop)
                 fut.set_result(None)
 
@@ -241,11 +241,11 @@ class TestTimerHandleBase:
 
         self.loop.run_until_complete(f())
 
-    def test_call_at_cancel(self):
-        async def f():
+    def test_call_at_cancel(self) -> None:
+        async def f() -> None:
             called = False
 
-            def cb():
+            def cb() -> None:
                 nonlocal called
                 called = True
 
@@ -258,13 +258,7 @@ class TestTimerHandleBase:
         self.loop.run_until_complete(f())
 
 
-class TestTimeHandleNonDebug(TestTimerHandleBase, unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.loop.set_debug(False)
-
-
-class TestTimeHandleDebug(TestTimerHandleBase, unittest.TestCase):
-    def setUp(self):
+class TestTimeHandleDebug(TestTimeHandleNonDebug):
+    def setUp(self) -> None:
         super().setUp()
         self.loop.set_debug(True)

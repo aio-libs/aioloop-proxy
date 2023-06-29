@@ -22,4 +22,4 @@ pretty = true
 show_error_codes = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-packages = ['aioloop_proxy']#, 'tests']
+packages = ['aioloop_proxy', 'tests']

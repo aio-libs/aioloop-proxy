@@ -6,19 +6,21 @@ import socket
 import subprocess
 import sys
 import unittest
+from typing import List, Optional
 
 import aioloop_proxy
 
-_loop = None
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
-def setUpModule():
+def setUpModule() -> None:
     global _loop
     _loop = asyncio.new_event_loop()
 
 
-def tearDownModule():
+def tearDownModule() -> None:
     global _loop
+    assert _loop is not None
     if hasattr(_loop, "shutdown_default_executor"):
         _loop.run_until_complete(_loop.shutdown_default_executor())
     _loop.run_until_complete(_loop.shutdown_asyncgens())
@@ -27,20 +29,21 @@ def tearDownModule():
 
 
 class TestCheckAndShutdown(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
+        assert _loop is not None
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if not self.loop.is_closed():
             self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_tasks(self):
-        async def g():
+    def test_tasks(self) -> None:
+        async def g() -> None:
             await asyncio.sleep(100)
 
-        async def f():
+        async def f() -> None:
             task = asyncio.create_task(g())
             with self.assertWarnsRegex(
                 ResourceWarning, re.escape(f"Unfinished task {task!r}")
@@ -51,11 +54,11 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_tasks_ignored(self):
-        async def g():
+    def test_tasks_ignored(self) -> None:
+        async def g() -> None:
             await asyncio.sleep(100)
 
-        async def f():
+        async def f() -> None:
             task = asyncio.create_task(g())
             await self.loop.check_and_shutdown(
                 kind=aioloop_proxy.CheckKind.TRANSPORTS  # not TASKS
@@ -66,8 +69,8 @@ class TestCheckAndShutdown(unittest.TestCase):
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no UNIX signals")
-    def test_signals(self):
-        async def f():
+    def test_signals(self) -> None:
+        async def f() -> None:
             self.loop.add_signal_handler(signal.SIGINT, lambda: None)
             with self.assertWarnsRegex(ResourceWarning, "Unregistered signal"):
                 await self.loop.check_and_shutdown()
@@ -75,8 +78,8 @@ class TestCheckAndShutdown(unittest.TestCase):
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no UNIX signals")
-    def test_signals_ignored(self):
-        async def f():
+    def test_signals_ignored(self) -> None:
+        async def f() -> None:
             self.loop.add_signal_handler(signal.SIGINT, lambda: None)
             await self.loop.check_and_shutdown(
                 kind=aioloop_proxy.CheckKind.TRANSPORTS  # not SIGNALS
@@ -84,9 +87,11 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_server(self):
-        async def f():
-            async def serve(reader, writer):
+    def test_server(self) -> None:
+        async def f() -> None:
+            async def serve(
+                reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+            ) -> None:
                 pass
 
             server = await asyncio.start_server(serve, host="127.0.0.1", port=0)
@@ -99,9 +104,11 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_server_not_serving(self):
-        async def f():
-            async def serve(reader, writer):
+    def test_server_not_serving(self) -> None:
+        async def f() -> None:
+            async def serve(
+                reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+            ) -> None:
                 pass
 
             server = await asyncio.start_server(serve, host="127.0.0.1", port=0)
@@ -112,9 +119,11 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_server_ignore(self):
-        async def f():
-            async def serve(reader, writer):
+    def test_server_ignore(self) -> None:
+        async def f() -> None:
+            async def serve(
+                reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+            ) -> None:
                 pass
 
             server = await asyncio.start_server(serve, host="127.0.0.1", port=0)
@@ -126,9 +135,9 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_write_transports(self):
-        async def f():
-            async def serve(sock):
+    def test_write_transports(self) -> None:
+        async def f() -> None:
+            async def serve(sock: socket.socket) -> socket.socket:
                 conn, addr = await self.loop.sock_accept(sock)
                 return conn
 
@@ -152,15 +161,15 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def exec_cmd(self, *args):
+    def exec_cmd(self, *args: str) -> List[str]:
         script = pathlib.Path(__file__).parent / "subproc.py"
         return [sys.executable, str(script)] + list(args)
 
     @unittest.skipIf(
         sys.version_info < (3, 8), "Subprocess support is tricky in Python 3.7"
     )
-    def test_subproc_transports(self):
-        async def f():
+    def test_subproc_transports(self) -> None:
+        async def f() -> None:
             proc = await asyncio.create_subprocess_exec(
                 *self.exec_cmd(),
                 stdin=subprocess.PIPE,
@@ -169,17 +178,17 @@ class TestCheckAndShutdown(unittest.TestCase):
             )
 
             with self.assertWarnsRegex(
-                ResourceWarning, re.escape(f"Unclosed transport {proc._transport!r}")
+                ResourceWarning, re.escape(f"Unclosed transport {proc._transport!r}")  # type: ignore[attr-defined] # noqa
             ):
                 await self.loop.check_and_shutdown()
 
-            self.assertTrue(proc._transport.is_closing())
+            self.assertTrue(proc._transport.is_closing())  # type: ignore[attr-defined] # noqa
 
         self.loop.run_until_complete(f())
 
-    def test_closing_transports(self):
-        async def f():
-            async def serve(sock):
+    def test_closing_transports(self) -> None:
+        async def f() -> None:
+            async def serve(sock: socket.socket) -> socket.socket:
                 conn, addr = await self.loop.sock_accept(sock)
                 return conn
 
@@ -205,8 +214,8 @@ class TestCheckAndShutdown(unittest.TestCase):
     @unittest.skipIf(
         sys.version_info < (3, 8), "Subprocess support is tricky in Python 3.7"
     )
-    def test_subproc_transports_ignore(self):
-        async def f():
+    def test_subproc_transports_ignore(self) -> None:
+        async def f() -> None:
             proc = await asyncio.create_subprocess_exec(
                 *self.exec_cmd(),
                 stdin=subprocess.PIPE,
@@ -218,18 +227,18 @@ class TestCheckAndShutdown(unittest.TestCase):
                 kind=aioloop_proxy.CheckKind.TASKS  # not TRANSPORTS
             )
 
-            self.assertTrue(proc._transport.is_closing())
+            self.assertTrue(proc._transport.is_closing())  # type: ignore[attr-defined] # noqa
 
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no readers support")
-    def test_readers(self):
-        async def f():
+    def test_readers(self) -> None:
+        async def f() -> None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
 
-            def on_read():
+            def on_read() -> None:
                 pass
 
             self.loop.add_reader(sock, on_read)
@@ -246,13 +255,13 @@ class TestCheckAndShutdown(unittest.TestCase):
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no readers support")
-    def test_readers_ignore(self):
-        async def f():
+    def test_readers_ignore(self) -> None:
+        async def f() -> None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
 
-            def on_read():
+            def on_read() -> None:
                 pass
 
             self.loop.add_reader(sock, on_read)
@@ -268,13 +277,13 @@ class TestCheckAndShutdown(unittest.TestCase):
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no writers support")
-    def test_writers(self):
-        async def f():
+    def test_writers(self) -> None:
+        async def f() -> None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
 
-            def on_write():
+            def on_write() -> None:
                 pass
 
             self.loop.add_writer(sock, on_write)
@@ -291,13 +300,13 @@ class TestCheckAndShutdown(unittest.TestCase):
         self.loop.run_until_complete(f())
 
     @unittest.skipIf(sys.platform == "win32", "Windows has no writers support")
-    def test_writers_ignore(self):
-        async def f():
+    def test_writers_ignore(self) -> None:
+        async def f() -> None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
 
-            def on_write():
+            def on_write() -> None:
                 pass
 
             self.loop.add_writer(sock, on_write)
@@ -312,8 +321,8 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_close_handle(self):
-        async def f():
+    def test_close_handle(self) -> None:
+        async def f() -> None:
             handle = self.loop.call_soon(lambda: None)
             await self.loop.check_and_shutdown()
 
@@ -321,8 +330,8 @@ class TestCheckAndShutdown(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_close_timer(self):
-        async def f():
+    def test_close_timer(self) -> None:
+        async def f() -> None:
             handle = self.loop.call_later(10, lambda: None)
             await self.loop.check_and_shutdown()
 

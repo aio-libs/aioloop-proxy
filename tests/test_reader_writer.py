@@ -2,19 +2,21 @@ import asyncio
 import os
 import sys
 import unittest
+from typing import Optional
 
 import aioloop_proxy
 
-_loop = None
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
-def setUpModule():
+def setUpModule() -> None:
     global _loop
     _loop = asyncio.new_event_loop()
 
 
-def tearDownModule():
+def tearDownModule() -> None:
     global _loop
+    assert _loop is not None
     if hasattr(_loop, "shutdown_default_executor"):
         _loop.run_until_complete(_loop.shutdown_default_executor())
     _loop.run_until_complete(_loop.shutdown_asyncgens())
@@ -24,22 +26,23 @@ def tearDownModule():
 
 @unittest.skipIf(sys.platform == "win32", "Not supported by Windows")
 class TestTransport(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
+        assert _loop is not None
         self.loop = aioloop_proxy.LoopProxy(_loop)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if not self.loop.is_closed():
             self.loop.run_until_complete(self.loop.check_and_shutdown())
             self.loop.run_until_complete(self.loop.shutdown_default_executor())
             self.loop.close()
 
-    def test_add_reader(self):
-        async def f():
+    def test_add_reader(self) -> None:
+        async def f() -> None:
             rpipe, wpipe = os.pipe()
             os.set_blocking(rpipe, False)
             fut = self.loop.create_future()
 
-            def on_read():
+            def on_read() -> None:
                 data = os.read(rpipe, 1024)
                 fut.set_result(data)
 
@@ -55,8 +58,8 @@ class TestTransport(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_remove_reader(self):
-        async def f():
+    def test_remove_reader(self) -> None:
+        async def f() -> None:
             rpipe, wpipe = os.pipe()
             os.set_blocking(rpipe, False)
 
@@ -72,7 +75,7 @@ class TestTransport(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_remove_reader_closed_loop(self):
+    def test_remove_reader_closed_loop(self) -> None:
         rpipe, wpipe = os.pipe()
         os.set_blocking(rpipe, False)
 
@@ -82,13 +85,13 @@ class TestTransport(unittest.TestCase):
         os.close(rpipe)
         os.close(wpipe)
 
-    def test_add_writer(self):
-        async def f():
+    def test_add_writer(self) -> None:
+        async def f() -> None:
             rpipe, wpipe = os.pipe()
             os.set_blocking(wpipe, False)
             fut = self.loop.create_future()
 
-            def on_write():
+            def on_write() -> None:
                 os.write(wpipe, b"MSG")
                 fut.set_result(None)
                 self.loop.remove_writer(wpipe)
@@ -112,8 +115,8 @@ class TestTransport(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_remove_writer(self):
-        async def f():
+    def test_remove_writer(self) -> None:
+        async def f() -> None:
             rpipe, wpipe = os.pipe()
             os.set_blocking(wpipe, False)
 
@@ -129,7 +132,7 @@ class TestTransport(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    def test_remove_writer_closed_loop(self):
+    def test_remove_writer_closed_loop(self) -> None:
         rpipe, wpipe = os.pipe()
         os.set_blocking(wpipe, False)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
+
 import asyncio
-from typing import TYPE_CHECKING, Any, Iterable, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Iterable, cast
 
 if TYPE_CHECKING:
     from ._loop import LoopProxy
@@ -65,7 +66,7 @@ class _ReadTransportProxy(_BaseTransportProxy, asyncio.ReadTransport):
 
 class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
     def set_write_buffer_limits(
-        self, high: Optional[int] = None, low: Optional[int] = None
+        self, high: int | None = None, low: int | None = None
     ) -> None:
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.set_write_buffer_limits(high, low)
@@ -74,7 +75,7 @@ class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.get_write_buffer_size()
 
-    def get_write_buffer_limits(self) -> Tuple[int, int]:
+    def get_write_buffer_limits(self) -> tuple[int, int]:
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.get_write_buffer_limits()
 
@@ -83,7 +84,7 @@ class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
         return orig.write(data)
 
     def writelines(
-        self, list_of_data: Iterable[Union[bytes | bytearray | memoryview]]
+        self, list_of_data: Iterable[bytes | bytearray | memoryview]
     ) -> None:
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.writelines(list_of_data)
@@ -120,11 +121,11 @@ class _SubprocessTransportProxy(_BaseTransportProxy, asyncio.SubprocessTransport
         orig = cast(asyncio.SubprocessTransport, self._orig)
         return orig.get_pid()
 
-    def get_returncode(self) -> Optional[int]:
+    def get_returncode(self) -> int | None:
         orig = cast(asyncio.SubprocessTransport, self._orig)
         return orig.get_returncode()
 
-    def get_pipe_transport(self, fd: int) -> Optional[asyncio.BaseTransport]:
+    def get_pipe_transport(self, fd: int) -> asyncio.BaseTransport | None:
         orig = cast(asyncio.SubprocessTransport, self._orig)
         transp = orig.get_pipe_transport(fd)
         if transp is None:

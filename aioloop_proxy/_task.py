@@ -1,10 +1,4 @@
 from __future__ import annotations
-# Task used by loop proxy
-# It is identical to the standard asyncio task with the signle exception:
-# a blocking future can belong not to the task's loop only but also
-# to any parent loop proxy
-# It allows creation, e.g., aiohttp.ClientSession with the parent loop proxy and
-# reusing it by children.
 
 import asyncio
 import contextvars
@@ -18,18 +12,15 @@ import sys
 import traceback
 import types
 from _thread import get_ident
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Generator,
-    Generic,
-    List,
-    Optional,
-    Set,
-    TypeVar,
-    Union,
-)
+from typing import Any, Awaitable, Callable, Generator, Generic, TypeVar
+
+# Task used by loop proxy
+# It is identical to the standard asyncio task with the signle exception:
+# a blocking future can belong not to the task's loop only but also
+# to any parent loop proxy
+# It allows creation, e.g., aiohttp.ClientSession with the parent loop proxy and
+# reusing it by children.
+
 
 _R = TypeVar("_R")
 
@@ -77,10 +68,10 @@ def _format_callbacks(cb: Any) -> Any:
 # AttributeError: '_asyncio.Task' object has no attribute '__module__' error.
 #
 # After fixing this thing we can return to the decorator based approach.
-_repr_running: Set[object] = set()
+_repr_running: set[object] = set()
 
 
-def _future_repr_info(future: Any) -> List[str]:
+def _future_repr_info(future: Any) -> list[str]:
     # (Future) -> str
     """helper function for Future.__repr__"""
     info = [future._state.lower()]
@@ -111,7 +102,7 @@ def _future_repr_info(future: Any) -> List[str]:
 # base_tasks
 
 
-def _task_repr_info(task: Any) -> List[str]:
+def _task_repr_info(task: Any) -> list[str]:
     info = _future_repr_info(task)
 
     if task._must_cancel:
@@ -128,7 +119,7 @@ def _task_repr_info(task: Any) -> List[str]:
     return info
 
 
-def _task_get_stack(task: Any, limit: Optional[int]) -> List[Any]:
+def _task_get_stack(task: Any, limit: int | None) -> list[Any]:
     frames = []
     if hasattr(task._coro, "cr_frame"):
         # case 1: 'async def' coroutines
@@ -220,7 +211,7 @@ def _format_args_and_kwargs(args: Any, kwargs: Any) -> Any:
     Special case for a single parameter: ('hello',) is formatted as ('hello').
     """
     # use reprlib to limit the length of the output
-    items: List[Any] = []
+    items: list[Any] = []
     if args:
         items.extend(reprlib.repr(arg) for arg in args)
     if kwargs:
@@ -246,7 +237,7 @@ def _format_callback(func: Any, args: Any, kwargs: Any, suffix: str = "") -> Any
     return func_repr
 
 
-def extract_stack(f: Any = None, limit: Optional[int] = None) -> traceback.StackSummary:
+def extract_stack(f: Any = None, limit: int | None = None) -> traceback.StackSummary:
     # Replacement for traceback.extract_stack() that only does the
     # necessary work for asyncio debug mode.
     if f is None:
@@ -353,9 +344,9 @@ class Future(Generic[_R]):
 
     # Class variables serving as defaults for instance variables.
     _state = _PENDING
-    _result: Optional[_R] = None
-    _exception: Optional[BaseException] = None
-    _loop: Optional[asyncio.AbstractEventLoop] = None
+    _result: _R | None = None
+    _exception: BaseException | None = None
+    _loop: asyncio.AbstractEventLoop | None = None
     _source_traceback: Any = None
     _cancel_message: Any = None
     # A saved CancelledError for later chaining as an exception context.
@@ -374,7 +365,7 @@ class Future(Generic[_R]):
 
     __log_traceback = False
 
-    def __init__(self, *, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    def __init__(self, *, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Initialize the future.
 
         The optional event_loop argument allows explicitly setting the event
@@ -385,11 +376,11 @@ class Future(Generic[_R]):
             self._loop = asyncio._get_event_loop()  # type: ignore
         else:
             self._loop = loop
-        self._callbacks: List[Any] = []
+        self._callbacks: list[Any] = []
         if self._loop.get_debug():  # type: ignore
             self._source_traceback = extract_stack(sys._getframe(1))
 
-    def _repr_info(self) -> List[Any]:
+    def _repr_info(self) -> list[Any]:
         return _future_repr_info(self)
 
     def __repr__(self) -> str:
@@ -508,7 +499,7 @@ class Future(Generic[_R]):
             raise self._exception
         return self._result  # type: ignore[return-value]
 
-    def exception(self) -> Optional[BaseException]:
+    def exception(self) -> BaseException | None:
         """Return the exception that was set on this future.
 
         The exception (or None if no exception was set) is returned only if
@@ -526,9 +517,9 @@ class Future(Generic[_R]):
 
     def add_done_callback(
         self,
-        fn: "Callable[[Future[_R]], None]",
+        fn: Callable[[Future[_R]], None],
         *,
-        context: Optional[contextvars.Context] = None,
+        context: contextvars.Context | None = None,
     ) -> None:
         """Add a callback to be run when the future becomes done.
 
@@ -545,7 +536,7 @@ class Future(Generic[_R]):
 
     # New method not in PEP 3148.
 
-    def remove_done_callback(self, fn: "Callable[[Future[_R]], None]") -> int:
+    def remove_done_callback(self, fn: Callable[[Future[_R]], None]) -> int:
         """Remove all instances of a callback from the "call when done" list.
 
         Returns the number of callbacks removed.
@@ -619,10 +610,10 @@ class Task(Future[_R]):
 
     def __init__(
         self,
-        coro: Union[Awaitable[_R], Generator[Any, None, _R]],
+        coro: Awaitable[_R] | Generator[Any, None, _R],
         *,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
-        name: Optional[str] = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(loop=loop)
         if self._source_traceback:
@@ -639,7 +630,7 @@ class Task(Future[_R]):
             self._name = str(name)
 
         self._must_cancel = False
-        self._fut_waiter: "Optional[asyncio.Future[Any]]" = None
+        self._fut_waiter: asyncio.Future[Any] | None = None
         self._coro = coro
         self._context = contextvars.copy_context()
 
@@ -657,7 +648,7 @@ class Task(Future[_R]):
             self._loop.call_exception_handler(context)  # type: ignore
         super().__del__()
 
-    def _repr_info(self) -> List[str]:  #
+    def _repr_info(self) -> list[str]:  #
         return _task_repr_info(self)
 
     def get_coro(self) -> Awaitable[_R]:
@@ -675,7 +666,7 @@ class Task(Future[_R]):
     def set_exception(self, exception: BaseException) -> None:
         raise RuntimeError("Task does not support set_exception operation")
 
-    def get_stack(self, *, limit: Optional[int] = None) -> List[types.FrameType]:
+    def get_stack(self, *, limit: int | None = None) -> list[types.FrameType]:
         """Return the list of stack frames for this task's coroutine.
 
         If the coroutine is not done, this returns the stack where it is
@@ -698,7 +689,7 @@ class Task(Future[_R]):
         """
         return _task_get_stack(self, limit)
 
-    def print_stack(self, *, limit: Optional[int] = None, file: Any = None) -> None:
+    def print_stack(self, *, limit: int | None = None, file: Any = None) -> None:
         """Print the stack or traceback for this task's coroutine.
 
         This produces output similar to that of the traceback module,
@@ -743,7 +734,7 @@ class Task(Future[_R]):
         self._cancel_message = msg
         return True
 
-    def __step(self, exc: Optional[BaseException] = None) -> None:
+    def __step(self, exc: BaseException | None = None) -> None:
         if self.done():
             raise asyncio.InvalidStateError(f"_step(): already done: {self!r}, {exc!r}")
         if self._must_cancel:

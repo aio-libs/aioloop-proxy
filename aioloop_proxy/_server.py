@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import asyncio
 import socket
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ._loop import LoopProxy
@@ -22,7 +23,7 @@ class _ServerProxy(asyncio.AbstractServer):
         return self._orig.is_serving()
 
     @property
-    def sockets(self) -> List[socket.socket]:
+    def sockets(self) -> list[socket.socket]:
         return self._orig.sockets  # type: ignore
 
     def close(self) -> None:

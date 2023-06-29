@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import asyncio
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ._loop import LoopProxy
 
 
 class _ProxyHandleMixin:
-    _parent: Optional[asyncio.Handle] = None
+    _parent: asyncio.Handle | None = None
     _loop: LoopProxy
-    _source_traceback: List[Any]
+    _source_traceback: list[Any]
 
     def _register(self) -> None:
         raise NotImplementedError

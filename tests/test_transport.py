@@ -1,15 +1,12 @@
 import asyncio
 import sys
 import unittest
+from typing import Optional
 from unittest.mock import Mock
 
 import aioloop_proxy
 from aioloop_proxy._protocol import _proto_proxy
 from aioloop_proxy._transport import _make_transport_proxy
-import aioloop_proxy
-from typing import Optional, Tuple, Set, cast, List
-
-import aioloop_proxy
 
 _loop: Optional[asyncio.AbstractEventLoop] = None
 

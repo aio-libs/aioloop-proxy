@@ -635,7 +635,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 family=family,
                 proto=proto,
                 flags=flags,
-                reuse_address=reuse_address,
+                # note: reuse_address arg is not supported by asyncio.BaseEventLoop
                 reuse_port=reuse_port,
                 allow_broadcast=allow_broadcast,
                 sock=sock,

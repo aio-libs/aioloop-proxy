@@ -43,7 +43,6 @@ class DatagramProto(asyncio.DatagramProtocol):
         self.events.add("DATA")
 
     def error_received(self, exc: BaseException) -> None:
-        breakpoint()
         self._recv.set_exception(exc)
         self.events.add("ERROR")
 

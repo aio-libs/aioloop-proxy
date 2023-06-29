@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, List, Optional
 
@@ -7,7 +8,7 @@ if TYPE_CHECKING:
 
 class _ProxyHandleMixin:
     _parent: Optional[asyncio.Handle] = None
-    _loop: "LoopProxy"
+    _loop: LoopProxy
     _source_traceback: List[Any]
 
     def _register(self) -> None:

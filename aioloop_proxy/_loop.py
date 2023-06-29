@@ -1,3 +1,5 @@
+from __future__ import annotations
+from contextvars import Context
 import asyncio
 import concurrent.futures
 import contextlib
@@ -27,6 +29,8 @@ from typing import (
     cast,
 )
 
+from typing_extensions import Buffer
+
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
 from ._server import _ServerProxy
@@ -40,6 +44,12 @@ _R = TypeVar("_R")
 class _HasFileno(Protocol):
     def fileno(self) -> int:
         ...
+
+
+class _TaskFactory(Protocol):
+    def __call__(
+        self, __loop: asyncio.AbstractEventLoop, __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R]
+    ) -> asyncio.Future[_R]: ...
 
 
 _FileDescriptor = int  # stable
@@ -88,21 +98,16 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._timers: Set[_ProxyTimerHandle] = set()
         self._readers: Dict[int, asyncio.Handle] = {}
         self._writers: Dict[int, asyncio.Handle] = {}
-        self._tasks: "weakref.WeakSet[Task[Any]]" = weakref.WeakSet()
-        self._transports: "weakref.WeakSet[_BaseTransportProxy]" = weakref.WeakSet()
-        self._servers: "weakref.WeakSet[_ServerProxy]" = weakref.WeakSet()
+        self._tasks: weakref.WeakSet[Task[Any]] = weakref.WeakSet()
+        self._transports: weakref.WeakSet[_BaseTransportProxy] = weakref.WeakSet()
+        self._servers: weakref.WeakSet[_ServerProxy] = weakref.WeakSet()
         self._signals: Dict[int, asyncio.Handle] = {}
 
-        self._task_factory: Optional[
-            Callable[
-                [asyncio.AbstractEventLoop, Generator[Any, None, _R]],
-                "asyncio.Future[_R]",
-            ]
-        ] = None
+        self._task_factory: Optional[_TaskFactory] = None
         self._default_executor: Any = None
         self._executor_shutdown_called = False
 
-        self._root_task: Optional["asyncio.Future[Any]"] = None
+        self._root_task: Optional[asyncio.Future[Any]] = None
         self._time_offset: float = 0.0
 
     def __repr__(self) -> str:
@@ -112,8 +117,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return f"<LoopProxy running={running} closed={closed} debug={debug}>"
 
     # properties
-    @property  # type:ignore[override]
-    def slow_callback_duration(self) -> float:  # type:ignore[override]
+    @property
+    def slow_callback_duration(self) -> float:
         return self._parent.slow_callback_duration
 
     @slow_callback_duration.setter
@@ -355,17 +360,18 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def time(self) -> float:
         return self._parent.time() + self._time_offset
 
-    def create_future(self) -> "asyncio.Future[Any]":
-        return Future(loop=self)  # type: ignore[return-value]
+    def create_future(self) -> asyncio.Future[Any]:
+        return Future(loop=self)  # type: ignore[return-value, misc]
 
     # Method scheduling a coroutine object: create a task.
 
     def create_task(
         self,
-        coro: Union[Awaitable[_R], Generator[Any, None, _R]],
+        coro: Union[Generator[Any, None, _R], Coroutine[Any, Any, _R]],
         *,
         name: Optional[str] = None,
-    ) -> "asyncio.Task[_R]":
+        context: Optional[Context] = None,
+    ) -> asyncio.Task[_R]:
         self._check_closed()
         if self._task_factory is None:
             task = Task(coro, loop=self, name=name)
@@ -401,7 +407,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def run_in_executor(
         self, executor: Any, func: Callable[..., _R], *args: Any
-    ) -> "asyncio.Future[_R]":
+    ) -> asyncio.Future[_R]:
         self._check_closed()
         if executor is None:
             executor = self._default_executor
@@ -442,7 +448,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         return await self._wrap_async(self._parent.getnameinfo(sockaddr, flags))
 
-    async def create_connection(
+    async def create_connection(  # type: ignore[override]
         self,
         protocol_factory: Callable[[], _ProtocolT],
         host: Optional[str] = None,
@@ -458,11 +464,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 **kwargs,
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return cast(asyncio.BaseTransport, transp), cast(_ProtocolT, proto.protocol)
 
     async def create_server(  # type: ignore[override]
         self,
@@ -496,7 +501,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         sent_count = await self._wrap_async(
             self._parent.sendfile(
-                cast(_BaseTransportProxy, transport)._orig,
+                cast(asyncio.WriteTransport, cast(_BaseTransportProxy, transport)._orig),
                 file,
                 offset,
                 count,
@@ -510,42 +515,57 @@ class LoopProxy(asyncio.AbstractEventLoop):
         transport: asyncio.BaseTransport,
         protocol: asyncio.BaseProtocol,
         sslcontext: ssl.SSLContext,
-        **kwargs: Any,
-    ) -> asyncio.BaseTransport:
+        *,
+        server_side: bool = False,
+        server_hostname: Optional[str] = None,
+        ssl_handshake_timeout: Optional[float] = None,
+        ssl_shutdown_timeout: Optional[float] = None,
+    ) -> asyncio.Transport:
         self._check_closed()
         proto = _proto_proxy(protocol, self)
         tr = await self._wrap_async(
             self._parent.start_tls(
-                cast(_BaseTransportProxy, transport)._orig,
+                cast(asyncio.WriteTransport, cast(_BaseTransportProxy, transport)._orig),
                 proto,
                 sslcontext,
-                **kwargs,
+                server_side=server_side,
+                server_hostname=server_hostname,
+                ssl_handshake_timeout=ssl_handshake_timeout,
+                ssl_shutdown_timeout=ssl_shutdown_timeout,
             )
         )
         transp = _make_transport_proxy(tr, self)
         proto.transport = transp
         self._transports.add(transp)
-        return transp
+        return cast(asyncio.Transport, transp)
 
     async def create_unix_connection(
         self,
         protocol_factory: Callable[[], _ProtocolT],
         path: Optional[str] = None,
-        **kwargs: Any,
-    ) -> Tuple[asyncio.BaseTransport, _ProtocolT]:
+        *,
+        ssl: Optional[Union[bool, ssl.SSLContext]] = None,
+        sock: Optional[socket.socket] = None,
+        server_hostname: Optional[str] = None,
+        ssl_handshake_timeout: Optional[float] = None,
+        ssl_shutdown_timeout: Optional[float] = None,
+    ) -> Tuple[asyncio.Transport, _ProtocolT]:
         self._check_closed()
         _, proto = await self._wrap_async(
             self._parent.create_unix_connection(
                 _proto_proxy_factory(protocol_factory, self),
                 path,
-                **kwargs,
+                ssl=ssl,
+                sock=sock,
+                server_hostname=server_hostname,
+                ssl_handshake_timeout=ssl_handshake_timeout,
+                ssl_shutdown_timeout=ssl_shutdown_timeout,
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
 
     async def create_unix_server(  # type: ignore[override]
         self,
@@ -566,39 +586,60 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return server_proxy
 
     async def connect_accepted_socket(
-        self, protocol_factory: _ProtocolFactory, sock: socket.socket, **kwargs: Any
-    ) -> Tuple[asyncio.BaseTransport, _ProtocolT]:
+        self, protocol_factory: _ProtocolFactory, sock: socket.socket,
+        *,
+        ssl: Optional[Union[bool, ssl.SSLContext]] = None,
+        ssl_handshake_timeout: Optional[float] = None,
+        ssl_shutdown_timeout: Optional[float] = None,
+
+    ) -> Tuple[asyncio.Transport, _ProtocolT]:
         self._check_closed()
         _, proto = await self._wrap_async(
-            self._parent.connect_accepted_socket(  # type: ignore[attr-defined]
-                _proto_proxy_factory(protocol_factory, self), sock, **kwargs
+            self._parent.connect_accepted_socket(
+                _proto_proxy_factory(protocol_factory, self), sock,
+                ssl=ssl,
+                ssl_handshake_timeout=ssl_handshake_timeout,
+                ssl_shutdown_timeout=ssl_shutdown_timeout,
             )
         )
         transp = proto.transport
+        assert transp is not None
         self._transports.add(transp)
-        return transp, proto.protocol
+        return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
 
     async def create_datagram_endpoint(
         self,
         protocol_factory: Callable[[], _ProtocolT],
-        local_addr: Optional[Tuple[str, int]] = None,
-        remote_addr: Optional[Tuple[str, int]] = None,
-        **kwargs: Any,
-    ) -> Tuple[asyncio.BaseTransport, _ProtocolT]:
+        local_addr: Optional[Union[Tuple[str, int], str]] = None,
+        remote_addr: Optional[Union[Tuple[str, int], str]] = None,
+        *,
+        family: int = 0,
+        proto: int = 0,
+        flags: int = 0,
+        reuse_address: Optional[bool] = None,
+        reuse_port: Optional[bool] = None,
+        allow_broadcast: Optional[bool] = None,
+        sock: Optional[socket.socket] = None,
+    ) -> Tuple[asyncio.DatagramTransport, _ProtocolT]:
         self._check_closed()
-        _, proto = await self._wrap_async(
+        _, protocol = await self._wrap_async(
             self._parent.create_datagram_endpoint(
                 _proto_proxy_factory(protocol_factory, self),
                 local_addr,
                 remote_addr,
-                **kwargs,
+                family=family,
+                proto=proto,
+                flags=flags,
+                reuse_address=reuse_address,
+                reuse_port=reuse_port,
+                allow_broadcast=allow_broadcast,
+                sock=sock,
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = protocol.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return cast(asyncio.DatagramTransport, transp), cast(_ProtocolT, protocol.protocol)
 
     # Pipes and subprocesses.
 
@@ -611,11 +652,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), pipe
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return transp, proto.protocol  # type: ignore[return-value]
 
     async def connect_write_pipe(
         self, protocol_factory: Callable[[], _ProtocolT], pipe: Any
@@ -626,11 +666,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), pipe
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return transp, proto.protocol  # type: ignore[return-value]
 
     async def subprocess_shell(
         self,
@@ -644,11 +683,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), cmd, **kwargs
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return transp, proto.protocol  # type: ignore[return-value]
 
     async def subprocess_exec(
         self, protocol_factory: Callable[[], _ProtocolT], *args: Any, **kwargs: Any
@@ -659,11 +697,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 _proto_proxy_factory(protocol_factory, self), *args, **kwargs
             )
         )
-        proto_proxy = cast(_BaseProtocolProxy, proto)
-        transp = proto_proxy.transport
+        transp = proto.transport
         assert transp is not None
         self._transports.add(transp)
-        return transp, proto_proxy.protocol  # type: ignore[return-value]
+        return transp, proto.protocol  # type: ignore[return-value]
 
     # Ready-based callback registration methods.
     # The add_*() methods return None.
@@ -678,7 +715,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._parent.add_reader(fd, self._wrap_cb, handle._run)
         self._readers[_get_fd(fd)] = handle
 
-    def remove_reader(self, fd: _FileDescriptorLike) -> bool:  # type:ignore[override]
+    def remove_reader(self, fd: _FileDescriptorLike) -> bool:
         if self.is_closed():
             return False
         self._parent.remove_reader(fd)
@@ -697,7 +734,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._parent.add_writer(_get_fd(fd), self._wrap_cb, handle._run)
         self._writers[_get_fd(fd)] = handle
 
-    def remove_writer(self, fd: _FileDescriptorLike) -> bool:  # type:ignore[override]
+    def remove_writer(self, fd: _FileDescriptorLike) -> bool:
         if self.is_closed():
             return False
         self._parent.remove_writer(fd)
@@ -714,16 +751,16 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._check_closed()
         return await self._wrap_async(self._parent.sock_recv(sock, nbytes))
 
-    async def sock_recv_into(self, sock: socket.socket, buf: bytearray) -> int:
+    async def sock_recv_into(self, sock: socket.socket, buf: Buffer) -> int:
         self._check_closed()
         return await self._wrap_async(self._parent.sock_recv_into(sock, buf))
 
-    async def sock_sendall(self, sock: socket.socket, data: bytes) -> None:
+    async def sock_sendall(self, sock: socket.socket, data: Buffer) -> None:
         self._check_closed()
         return await self._wrap_async(self._parent.sock_sendall(sock, data))
 
     async def sock_connect(
-        self, sock: socket.socket, address: Union[Tuple[Any, ...], str]
+        self, sock: socket.socket, address: Union[Tuple[Any, ...], str, Buffer]
     ) -> None:
         self._check_closed()
         return await self._wrap_async(self._parent.sock_connect(sock, address))
@@ -746,6 +783,19 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.sock_sendfile(sock, file, offset, count, fallback=fallback)
         )
 
+    async def sock_recvfrom(self, sock: socket.socket, bufsize: int) -> Tuple[bytes, Any]:
+        self._check_closed()
+        return await self._wrap_async(self._parent.sock_recvfrom(sock, bufsize))
+
+    async def sock_recvfrom_into(self, sock: socket.socket, buf: Buffer, nbytes: int = 0) -> Tuple[int, Any]:
+        self._check_closed()
+        return await self._wrap_async(self._parent.sock_recvfrom_into(sock, buf, nbytes))
+
+    async def sock_sendto(self, sock: socket.socket, data: Buffer, address: Any) -> int:
+        self._check_closed()
+        return await self._wrap_async(self._parent.sock_sendto(sock, data, address))
+
+
     # Signal handling.
 
     def add_signal_handler(
@@ -765,12 +815,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def set_task_factory(
         self,
-        factory: Optional[
-            Callable[
-                [asyncio.AbstractEventLoop, Generator[Any, None, _R]],
-                "asyncio.Future[_R]",
-            ]
-        ],
+        factory: Optional[_TaskFactory],
     ) -> None:
         if factory is not None and not callable(factory):
             raise TypeError("task factory must be a callable or None")
@@ -778,11 +823,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def get_task_factory(
         self,
-    ) -> Optional[
-        Callable[
-            [asyncio.AbstractEventLoop, Generator[Any, None, _R]], "asyncio.Future[_R]"
-        ]
-    ]:
+    ) -> Optional[_TaskFactory]:
         return self._task_factory
 
     # Error handlers.
@@ -835,7 +876,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def _wrap_async(
         self, coro_or_future: Union[Awaitable[_R], Coroutine[Any, Any, _R]]
-    ) -> "asyncio.Future[_R]":
+    ) -> asyncio.Future[_R]:
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         assert loop is None or loop is self
@@ -846,14 +887,14 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def _chain_future(
         self,
-        target: "asyncio.Future[_R]",
-        source: "asyncio.Future[_R]",
+        target: asyncio.Future[_R],
+        source: asyncio.Future[_R],
     ) -> None:
-        def _call_check_cancel(target: "asyncio.Future[_R]") -> None:
+        def _call_check_cancel(target: asyncio.Future[_R]) -> None:
             if target.cancelled():
                 source.cancel()
 
-        def _call_set_state(source: "asyncio.Future[_R]") -> None:
+        def _call_set_state(source: asyncio.Future[_R]) -> None:
             if source.cancelled():
                 target.cancel()
                 return

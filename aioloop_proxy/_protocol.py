@@ -1,5 +1,8 @@
+from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Callable, Optional, cast
+
+from typing_extensions import Buffer
 
 from ._transport import (
     _BaseTransportProxy,
@@ -12,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class _BaseProtocolProxy(asyncio.BaseProtocol):
-    def __init__(self, protocol: asyncio.BaseProtocol, loop: "LoopProxy") -> None:
+    def __init__(self, protocol: asyncio.BaseProtocol, loop: LoopProxy) -> None:
         self._loop = loop
         self.protocol = protocol
         self.transport: Optional[_BaseTransportProxy] = None
@@ -47,7 +50,7 @@ class _ProtocolProxy(_BaseProtocolProxy, asyncio.Protocol):
 
 
 class _BufferedProtocolProxy(_BaseProtocolProxy, asyncio.BufferedProtocol):
-    def get_buffer(self, sizehint: int) -> bytearray:
+    def get_buffer(self, sizehint: int) -> Buffer:
         protocol = cast(asyncio.BufferedProtocol, self.protocol)
         return self._loop._wrap_cb(protocol.get_buffer, sizehint)
 
@@ -57,7 +60,7 @@ class _BufferedProtocolProxy(_BaseProtocolProxy, asyncio.BufferedProtocol):
 
     def eof_received(self) -> None:
         protocol = cast(asyncio.BufferedProtocol, self.protocol)
-        self._loop._wrap_cb(protocol.eof_received)  # type: ignore[attr-defined]
+        self._loop._wrap_cb(protocol.eof_received)
 
 
 class _UniversalProtocolProxy(_BufferedProtocolProxy, _ProtocolProxy):
@@ -105,7 +108,7 @@ _MAP = (
 
 
 def _proto_proxy(
-    original: asyncio.BaseProtocol, loop: "LoopProxy"
+    original: asyncio.BaseProtocol, loop: LoopProxy
 ) -> _BaseProtocolProxy:
     if isinstance(original, asyncio.BufferedProtocol) and isinstance(
         original, asyncio.Protocol
@@ -120,7 +123,7 @@ def _proto_proxy(
 
 def _proto_proxy_factory(
     original_factory: Callable[[], asyncio.BaseProtocol],
-    loop: "LoopProxy",
+    loop: LoopProxy,
 ) -> Callable[[], _BaseProtocolProxy]:
     def factory() -> _BaseProtocolProxy:
         original = original_factory()

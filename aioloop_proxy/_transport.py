@@ -1,12 +1,13 @@
+from __future__ import annotations
 import asyncio
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Tuple, Union, cast
 
 if TYPE_CHECKING:
     from ._loop import LoopProxy
 
 
 class _BaseTransportProxy(asyncio.BaseTransport):
-    def __init__(self, original: asyncio.BaseTransport, loop: "LoopProxy"):
+    def __init__(self, original: asyncio.BaseTransport, loop: LoopProxy):
         self._loop = loop
         self._orig = original
 
@@ -75,13 +76,15 @@ class _WriteTransportProxy(_BaseTransportProxy, asyncio.WriteTransport):
 
     def get_write_buffer_limits(self) -> Tuple[int, int]:
         orig = cast(asyncio.WriteTransport, self._orig)
-        return orig.get_write_buffer_limits()  # type: ignore
+        return orig.get_write_buffer_limits()
 
     def write(self, data: bytes) -> None:
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.write(data)
 
-    def writelines(self, list_of_data: List[bytes]) -> None:
+    def writelines(
+        self, list_of_data: Iterable[Union[bytes | bytearray | memoryview]]
+    ) -> None:
         orig = cast(asyncio.WriteTransport, self._orig)
         return orig.writelines(list_of_data)
 
@@ -128,9 +131,9 @@ class _SubprocessTransportProxy(_BaseTransportProxy, asyncio.SubprocessTransport
             return None
         return _make_transport_proxy(transp, self._loop)
 
-    def send_signal(self, signal: int) -> int:
+    def send_signal(self, signal: int) -> None:
         orig = cast(asyncio.SubprocessTransport, self._orig)
-        return orig.send_signal(signal)
+        orig.send_signal(signal)
 
     def terminate(self) -> None:
         orig = cast(asyncio.SubprocessTransport, self._orig)
@@ -152,7 +155,7 @@ _MAP = (
 
 
 def _make_transport_proxy(
-    original: asyncio.BaseTransport, loop: "LoopProxy"
+    original: asyncio.BaseTransport, loop: LoopProxy
 ) -> _BaseTransportProxy:
     for orig_type, proxy_type in _MAP:
         if isinstance(original, orig_type):

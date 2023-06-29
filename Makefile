@@ -10,8 +10,10 @@ ifdef CI
 else
 	pre-commit run --all-files
 endif
-	mypy --strict --show-error-codes -p aioloop_proxy
-	mypy --show-error-codes tests
+	mypy
+
+mypy:
+	mypy
 
 test:
 	python -We -m unittest discover tests

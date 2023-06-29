@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Task used by loop proxy
 # It is identical to the standard asyncio task with the signle exception:
 # a blocking future can belong not to the task's loop only but also
@@ -293,8 +294,8 @@ def _format_coroutine(coro: Any) -> Any:
     coro_code = None
     if hasattr(coro, "cr_code") and coro.cr_code:  # type: ignore
         coro_code = coro.cr_code
-    elif hasattr(coro, "gi_code") and coro.gi_code:  # type: ignore
-        coro_code = coro.gi_code  # type: ignore
+    elif hasattr(coro, "gi_code") and coro.gi_code:
+        coro_code = coro.gi_code
 
     coro_name = get_name(coro)
 
@@ -306,8 +307,8 @@ def _format_coroutine(coro: Any) -> Any:
             return coro_name
 
     coro_frame = None
-    if hasattr(coro, "gi_frame") and coro.gi_frame:  # type: ignore
-        coro_frame = coro.gi_frame  # type: ignore
+    if hasattr(coro, "gi_frame") and coro.gi_frame:
+        coro_frame = coro.gi_frame
     elif hasattr(coro, "cr_frame") and coro.cr_frame:  # type: ignore
         coro_frame = coro.cr_frame
 
@@ -822,7 +823,8 @@ class Task(Future[_R]):
                 new_exc = RuntimeError(f"Task got bad yield: {result!r}")
                 self._loop.call_soon(self.__step, new_exc, context=self._context)  # type: ignore # noqa
         finally:
-            asyncio._leave_task(self._loop, self)  # type: ignore[attr-defined]
+            assert self._loop is not None
+            asyncio._leave_task(self._loop, self)  # type: ignore[arg-type]
             self = None  # type: ignore # Needed to break cycles when exception occurs.
 
     def __wakeup(self, future: Future[_R]) -> None:

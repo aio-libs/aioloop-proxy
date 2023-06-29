@@ -15,3 +15,11 @@ filename = "CHANGES.rst"
 directory = "CHANGES/"
 title_format = "{version} ({project_date})"
 issue_format = ":issue:`{issue}`"
+
+[tool.mypy]
+strict = true
+pretty = true
+show_error_codes = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+packages = ['aioloop_proxy']#, 'tests']

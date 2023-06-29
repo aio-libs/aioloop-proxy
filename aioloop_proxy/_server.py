@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import socket
 from typing import TYPE_CHECKING, List
@@ -7,7 +8,7 @@ if TYPE_CHECKING:
 
 
 class _ServerProxy(asyncio.AbstractServer):
-    def __init__(self, original: asyncio.AbstractServer, loop: "LoopProxy"):
+    def __init__(self, original: asyncio.AbstractServer, loop: LoopProxy):
         self._orig = original
         self._loop = loop
 

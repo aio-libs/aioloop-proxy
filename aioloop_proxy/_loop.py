@@ -38,6 +38,8 @@ from ._transport import _BaseTransportProxy, _make_transport_proxy
 
 _R = TypeVar("_R")
 
+_Coro = Union[Coroutine[Any, Any, _R] | Generator[Any, None, _R]]
+
 
 # stable
 class _HasFileno(Protocol):
@@ -49,7 +51,7 @@ class _TaskFactory(Protocol):
     def __call__(
         self,
         __loop: asyncio.AbstractEventLoop,
-        __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
+        __factory: _Coro,
     ) -> asyncio.Future[_R]:
         ...
 

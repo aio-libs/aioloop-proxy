@@ -680,7 +680,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._transports.add(transp)
             return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
 
-    elif sys.version_info >= (3, 9):
+    elif sys.version_info >= (3, 10):
 
         async def connect_accepted_socket(
             self,

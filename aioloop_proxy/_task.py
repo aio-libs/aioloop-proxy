@@ -439,20 +439,38 @@ class Future(Generic[_R]):
         self._cancelled_exc = None
         return exc
 
-    def cancel(self, msg: Any = None) -> bool:
-        """Cancel the future and schedule callbacks.
+    if sys.version_info >= (3, 9):
 
-        If the future is already done or cancelled, return False.  Otherwise,
-        change the future's state to cancelled, schedule the callbacks and
-        return True.
-        """
-        self.__log_traceback = False
-        if self._state != _PENDING:
-            return False
-        self._state = _CANCELLED
-        self._cancel_message = msg
-        self.__schedule_callbacks()
-        return True
+        def cancel(self, msg: Any = None) -> bool:
+            """Cancel the future and schedule callbacks.
+
+            If the future is already done or cancelled, return False.  Otherwise,
+            change the future's state to cancelled, schedule the callbacks and
+            return True.
+            """
+            self.__log_traceback = False
+            if self._state != _PENDING:
+                return False
+            self._state = _CANCELLED
+            self._cancel_message = msg
+            self.__schedule_callbacks()
+            return True
+
+    else:
+
+        def cancel(self) -> bool:
+            """Cancel the future and schedule callbacks.
+
+            If the future is already done or cancelled, return False.  Otherwise,
+            change the future's state to cancelled, schedule the callbacks and
+            return True.
+            """
+            self.__log_traceback = False
+            if self._state != _PENDING:
+                return False
+            self._state = _CANCELLED
+            self.__schedule_callbacks()
+            return True
 
     def __schedule_callbacks(self) -> None:
         """Internal: Ask the event loop to call all callbacks.
@@ -700,39 +718,76 @@ class Task(Future[_R]):
         """
         return _task_print_stack(self, limit, file)
 
-    def cancel(self, msg: Any = None) -> bool:
-        """Request that this task cancel itself.
+    if sys.version_info >= (3, 9):
 
-        This arranges for a CancelledError to be thrown into the
-        wrapped coroutine on the next cycle through the event loop.
-        The coroutine then has a chance to clean up or even deny
-        the request using try/except/finally.
+        def cancel(self, msg: Any = None) -> bool:
+            """Request that this task cancel itself.
 
-        Unlike Future.cancel, this does not guarantee that the
-        task will be cancelled: the exception might be caught and
-        acted upon, delaying cancellation of the task or preventing
-        cancellation completely.  The task may also return a value or
-        raise a different exception.
+            This arranges for a CancelledError to be thrown into the
+            wrapped coroutine on the next cycle through the event loop.
+            The coroutine then has a chance to clean up or even deny
+            the request using try/except/finally.
 
-        Immediately after this method is called, Task.cancelled() will
-        not return True (unless the task was already cancelled).  A
-        task will be marked as cancelled when the wrapped coroutine
-        terminates with a CancelledError exception (even if cancel()
-        was not called).
-        """
-        self._log_traceback = False
-        if self.done():
-            return False
-        if self._fut_waiter is not None:
-            if self._fut_waiter.cancel(msg=msg):
-                # Leave self._fut_waiter; it may be a Task that
-                # catches and ignores the cancellation so we may have
-                # to cancel it again later.
-                return True
-        # It must be the case that self.__step is already scheduled.
-        self._must_cancel = True
-        self._cancel_message = msg
-        return True
+            Unlike Future.cancel, this does not guarantee that the
+            task will be cancelled: the exception might be caught and
+            acted upon, delaying cancellation of the task or preventing
+            cancellation completely.  The task may also return a value or
+            raise a different exception.
+
+            Immediately after this method is called, Task.cancelled() will
+            not return True (unless the task was already cancelled).  A
+            task will be marked as cancelled when the wrapped coroutine
+            terminates with a CancelledError exception (even if cancel()
+            was not called).
+            """
+            self._log_traceback = False
+            if self.done():
+                return False
+            if self._fut_waiter is not None:
+                if self._fut_waiter.cancel(msg=msg):
+                    # Leave self._fut_waiter; it may be a Task that
+                    # catches and ignores the cancellation so we may have
+                    # to cancel it again later.
+                    return True
+            # It must be the case that self.__step is already scheduled.
+            self._must_cancel = True
+            self._cancel_message = msg
+            return True
+
+    else:
+
+        def cancel(self) -> bool:
+            """Request that this task cancel itself.
+
+            This arranges for a CancelledError to be thrown into the
+            wrapped coroutine on the next cycle through the event loop.
+            The coroutine then has a chance to clean up or even deny
+            the request using try/except/finally.
+
+            Unlike Future.cancel, this does not guarantee that the
+            task will be cancelled: the exception might be caught and
+            acted upon, delaying cancellation of the task or preventing
+            cancellation completely.  The task may also return a value or
+            raise a different exception.
+
+            Immediately after this method is called, Task.cancelled() will
+            not return True (unless the task was already cancelled).  A
+            task will be marked as cancelled when the wrapped coroutine
+            terminates with a CancelledError exception (even if cancel()
+            was not called).
+            """
+            self._log_traceback = False
+            if self.done():
+                return False
+            if self._fut_waiter is not None:
+                if self._fut_waiter.cancel():
+                    # Leave self._fut_waiter; it may be a Task that
+                    # catches and ignores the cancellation so we may have
+                    # to cancel it again later.
+                    return True
+            # It must be the case that self.__step is already scheduled.
+            self._must_cancel = True
+            return True
 
     def __step(self, exc: BaseException | None = None) -> None:
         if self.done():

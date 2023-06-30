@@ -812,7 +812,10 @@ class Task(Future[_R]):
             if self._must_cancel:
                 # Task is cancelled right before coro stops.
                 self._must_cancel = False
-                super().cancel(msg=self._cancel_message)
+                if sys.version_info >= (3, 9):
+                    super().cancel(msg=self._cancel_message)
+                else:
+                    super().cancel()
             else:
                 super().set_result(exc.value)
         except asyncio.CancelledError as exc:
@@ -845,8 +848,12 @@ class Task(Future[_R]):
                         result.add_done_callback(self.__wakeup, context=self._context)
                         self._fut_waiter = result
                         if self._must_cancel:
-                            if self._fut_waiter.cancel(msg=self._cancel_message):
-                                self._must_cancel = False
+                            if sys.version_info >= (3, 9):
+                                if self._fut_waiter.cancel(msg=self._cancel_message):
+                                    self._must_cancel = False
+                            else:
+                                if self._fut_waiter.cancel():
+                                    self._must_cancel = False
                 else:
                     new_exc = RuntimeError(
                         f"yield was used instead of yield from "

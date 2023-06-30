@@ -54,7 +54,7 @@ class _TaskFactory(Protocol):
     def __call__(
         self,
         __loop: asyncio.AbstractEventLoop,
-        __factory: _Coro[_R],
+        __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
     ) -> asyncio.Future[_R]:
         ...
 

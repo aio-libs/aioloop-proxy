@@ -4,7 +4,7 @@ import signal
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Coroutine, Generator, Optional
+from typing import Any, Coroutine, Generator, Optional, Union
 from unittest import mock
 
 import aioloop_proxy
@@ -105,7 +105,7 @@ class TestLoop(unittest.TestCase):
 
             def factory(
                 loop: asyncio.AbstractEventLoop,
-                coro: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
+                coro: Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]],
             ) -> asyncio.Task[_R]:
                 nonlocal called
                 called = True

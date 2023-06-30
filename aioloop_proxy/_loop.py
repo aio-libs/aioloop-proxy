@@ -7,6 +7,7 @@ import contextvars
 import enum
 import socket
 import ssl
+import sys
 import threading
 import warnings
 import weakref
@@ -511,64 +512,129 @@ class LoopProxy(asyncio.AbstractEventLoop):
         )
         return sent_count
 
-    async def start_tls(
-        self,
-        transport: asyncio.BaseTransport,
-        protocol: asyncio.BaseProtocol,
-        sslcontext: ssl.SSLContext,
-        *,
-        server_side: bool = False,
-        server_hostname: str | None = None,
-        ssl_handshake_timeout: float | None = None,
-        ssl_shutdown_timeout: float | None = None,
-    ) -> asyncio.Transport:
-        self._check_closed()
-        proto = _proto_proxy(protocol, self)
-        tr = await self._wrap_async(
-            self._parent.start_tls(
-                cast(
-                    asyncio.WriteTransport, cast(_BaseTransportProxy, transport)._orig
-                ),
-                proto,
-                sslcontext,
-                server_side=server_side,
-                server_hostname=server_hostname,
-                ssl_handshake_timeout=ssl_handshake_timeout,
-                ssl_shutdown_timeout=ssl_shutdown_timeout,
-            )
-        )
-        transp = _make_transport_proxy(tr, self)
-        proto.transport = transp
-        self._transports.add(transp)
-        return cast(asyncio.Transport, transp)
+    if sys.version_info >= (3, 11):
 
-    async def create_unix_connection(
-        self,
-        protocol_factory: Callable[[], _ProtocolT],
-        path: str | None = None,
-        *,
-        ssl: bool | ssl.SSLContext | None = None,
-        sock: socket.socket | None = None,
-        server_hostname: str | None = None,
-        ssl_handshake_timeout: float | None = None,
-        ssl_shutdown_timeout: float | None = None,
-    ) -> tuple[asyncio.Transport, _ProtocolT]:
-        self._check_closed()
-        _, proto = await self._wrap_async(
-            self._parent.create_unix_connection(
-                _proto_proxy_factory(protocol_factory, self),
-                path,
-                ssl=ssl,
-                sock=sock,
-                server_hostname=server_hostname,
-                ssl_handshake_timeout=ssl_handshake_timeout,
-                ssl_shutdown_timeout=ssl_shutdown_timeout,
+        async def start_tls(
+            self,
+            transport: asyncio.BaseTransport,
+            protocol: asyncio.BaseProtocol,
+            sslcontext: ssl.SSLContext,
+            *,
+            server_side: bool = False,
+            server_hostname: str | None = None,
+            ssl_handshake_timeout: float | None = None,
+            ssl_shutdown_timeout: float | None = None,
+        ) -> asyncio.Transport:
+            self._check_closed()
+            proto = _proto_proxy(protocol, self)
+            tr = await self._wrap_async(
+                self._parent.start_tls(
+                    cast(
+                        asyncio.WriteTransport,
+                        cast(_BaseTransportProxy, transport)._orig,
+                    ),
+                    proto,
+                    sslcontext,
+                    server_side=server_side,
+                    server_hostname=server_hostname,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                    ssl_shutdown_timeout=ssl_shutdown_timeout,
+                )
             )
-        )
-        transp = proto.transport
-        assert transp is not None
-        self._transports.add(transp)
-        return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
+            transp = _make_transport_proxy(tr, self)
+            proto.transport = transp
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp)
+
+    else:
+
+        async def start_tls(
+            self,
+            transport: asyncio.BaseTransport,
+            protocol: asyncio.BaseProtocol,
+            sslcontext: ssl.SSLContext,
+            *,
+            server_side: bool = False,
+            server_hostname: str | None = None,
+            ssl_handshake_timeout: float | None = None,
+        ) -> asyncio.Transport:
+            self._check_closed()
+            proto = _proto_proxy(protocol, self)
+            tr = await self._wrap_async(
+                self._parent.start_tls(
+                    cast(
+                        asyncio.WriteTransport,
+                        cast(_BaseTransportProxy, transport)._orig,
+                    ),
+                    proto,
+                    sslcontext,
+                    server_side=server_side,
+                    server_hostname=server_hostname,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                )
+            )
+            transp = _make_transport_proxy(tr, self)
+            proto.transport = transp
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp)
+
+    if sys.version_info >= (3, 11):
+
+        async def create_unix_connection(
+            self,
+            protocol_factory: Callable[[], _ProtocolT],
+            path: str | None = None,
+            *,
+            ssl: bool | ssl.SSLContext | None = None,
+            sock: socket.socket | None = None,
+            server_hostname: str | None = None,
+            ssl_handshake_timeout: float | None = None,
+            ssl_shutdown_timeout: float | None = None,
+        ) -> tuple[asyncio.Transport, _ProtocolT]:
+            self._check_closed()
+            _, proto = await self._wrap_async(
+                self._parent.create_unix_connection(
+                    _proto_proxy_factory(protocol_factory, self),
+                    path,
+                    ssl=ssl,
+                    sock=sock,
+                    server_hostname=server_hostname,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                    ssl_shutdown_timeout=ssl_shutdown_timeout,
+                )
+            )
+            transp = proto.transport
+            assert transp is not None
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
+
+    else:
+
+        async def create_unix_connection(
+            self,
+            protocol_factory: Callable[[], _ProtocolT],
+            path: str | None = None,
+            *,
+            ssl: bool | ssl.SSLContext | None = None,
+            sock: socket.socket | None = None,
+            server_hostname: str | None = None,
+            ssl_handshake_timeout: float | None = None,
+        ) -> tuple[asyncio.Transport, _ProtocolT]:
+            self._check_closed()
+            _, proto = await self._wrap_async(
+                self._parent.create_unix_connection(
+                    _proto_proxy_factory(protocol_factory, self),
+                    path,
+                    ssl=ssl,
+                    sock=sock,
+                    server_hostname=server_hostname,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                )
+            )
+            transp = proto.transport
+            assert transp is not None
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
 
     async def create_unix_server(  # type: ignore[override]
         self,
@@ -588,29 +654,55 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._servers.add(server_proxy)
         return server_proxy
 
-    async def connect_accepted_socket(
-        self,
-        protocol_factory: _ProtocolFactory,
-        sock: socket.socket,
-        *,
-        ssl: bool | ssl.SSLContext | None = None,
-        ssl_handshake_timeout: float | None = None,
-        ssl_shutdown_timeout: float | None = None,
-    ) -> tuple[asyncio.Transport, _ProtocolT]:
-        self._check_closed()
-        _, proto = await self._wrap_async(
-            self._parent.connect_accepted_socket(
-                _proto_proxy_factory(protocol_factory, self),
-                sock,
-                ssl=ssl,
-                ssl_handshake_timeout=ssl_handshake_timeout,
-                ssl_shutdown_timeout=ssl_shutdown_timeout,
+    if sys.version_info >= (3, 11):
+
+        async def connect_accepted_socket(
+            self,
+            protocol_factory: _ProtocolFactory,
+            sock: socket.socket,
+            *,
+            ssl: bool | ssl.SSLContext | None = None,
+            ssl_handshake_timeout: float | None = None,
+            ssl_shutdown_timeout: float | None = None,
+        ) -> tuple[asyncio.Transport, _ProtocolT]:
+            self._check_closed()
+            _, proto = await self._wrap_async(
+                self._parent.connect_accepted_socket(
+                    _proto_proxy_factory(protocol_factory, self),
+                    sock,
+                    ssl=ssl,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                    ssl_shutdown_timeout=ssl_shutdown_timeout,
+                )
             )
-        )
-        transp = proto.transport
-        assert transp is not None
-        self._transports.add(transp)
-        return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
+            transp = proto.transport
+            assert transp is not None
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
+
+    else:
+
+        async def connect_accepted_socket(
+            self,
+            protocol_factory: _ProtocolFactory,
+            sock: socket.socket,
+            *,
+            ssl: bool | ssl.SSLContext | None = None,
+            ssl_handshake_timeout: float | None = None,
+        ) -> tuple[asyncio.Transport, _ProtocolT]:
+            self._check_closed()
+            _, proto = await self._wrap_async(
+                self._parent.connect_accepted_socket(
+                    _proto_proxy_factory(protocol_factory, self),
+                    sock,
+                    ssl=ssl,
+                    ssl_handshake_timeout=ssl_handshake_timeout,
+                )
+            )
+            transp = proto.transport
+            assert transp is not None
+            self._transports.add(transp)
+            return cast(asyncio.Transport, transp), cast(_ProtocolT, proto.protocol)
 
     async def create_datagram_endpoint(
         self,
@@ -790,23 +882,27 @@ class LoopProxy(asyncio.AbstractEventLoop):
             self._parent.sock_sendfile(sock, file, offset, count, fallback=fallback)
         )
 
-    async def sock_recvfrom(
-        self, sock: socket.socket, bufsize: int
-    ) -> tuple[bytes, Any]:
-        self._check_closed()
-        return await self._wrap_async(self._parent.sock_recvfrom(sock, bufsize))
+    if sys.version_info >= (3, 11):
 
-    async def sock_recvfrom_into(
-        self, sock: socket.socket, buf: Buffer, nbytes: int = 0
-    ) -> tuple[int, Any]:
-        self._check_closed()
-        return await self._wrap_async(
-            self._parent.sock_recvfrom_into(sock, buf, nbytes)
-        )
+        async def sock_recvfrom(
+            self, sock: socket.socket, bufsize: int
+        ) -> tuple[bytes, Any]:
+            self._check_closed()
+            return await self._wrap_async(self._parent.sock_recvfrom(sock, bufsize))
 
-    async def sock_sendto(self, sock: socket.socket, data: Buffer, address: Any) -> int:
-        self._check_closed()
-        return await self._wrap_async(self._parent.sock_sendto(sock, data, address))
+        async def sock_recvfrom_into(
+            self, sock: socket.socket, buf: Buffer, nbytes: int = 0
+        ) -> tuple[int, Any]:
+            self._check_closed()
+            return await self._wrap_async(
+                self._parent.sock_recvfrom_into(sock, buf, nbytes)
+            )
+
+        async def sock_sendto(
+            self, sock: socket.socket, data: Buffer, address: Any
+        ) -> int:
+            self._check_closed()
+            return await self._wrap_async(self._parent.sock_sendto(sock, data, address))
 
     # Signal handling.
 

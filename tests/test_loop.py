@@ -106,7 +106,7 @@ class TestLoop(unittest.TestCase):
 
             def factory(
                 loop: asyncio.AbstractEventLoop,
-                coro: _Coro,
+                coro: _Coro[_R],
             ) -> asyncio.Task[_R]:
                 nonlocal called
                 called = True

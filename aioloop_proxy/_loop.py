@@ -38,10 +38,7 @@ from ._transport import _BaseTransportProxy, _make_transport_proxy
 
 _R = TypeVar("_R")
 
-if sys.version_info >= (3, 12):
-    _Coro = Coroutine[Any, Any, _R]
-else:
-    _Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
+_Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
 
 
 # stable

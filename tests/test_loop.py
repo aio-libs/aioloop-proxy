@@ -6,6 +6,7 @@ import signal
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Coroutine, cast
 from unittest import mock
 
 import aioloop_proxy
@@ -110,7 +111,7 @@ class TestLoop(unittest.TestCase):
             ) -> asyncio.Task[_R]:
                 nonlocal called
                 called = True
-                return asyncio.Task(coro, loop=loop)
+                return asyncio.Task(cast(Coroutine[Any, Any, _R], coro), loop=loop)
 
             proxy.set_task_factory(factory)
             # parent is not touched

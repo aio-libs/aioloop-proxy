@@ -12,6 +12,7 @@ import sys
 import traceback
 import types
 from _thread import get_ident
+from contextvars import Context
 from typing import Any, Awaitable, Callable, Generator, Generic, TypeVar
 
 # Task used by loop proxy
@@ -430,6 +431,12 @@ class Future(Generic[_R]):
         This should only be called once when handling a cancellation since
         it erases the saved context exception value.
         """
+        if self._cancelled_exc is not None:
+            breakpoint()
+            exc = self._cancelled_exc
+            self._cancelled_exc = None
+            return exc
+
         if self._cancel_message is None:
             exc = asyncio.CancelledError()
         else:
@@ -632,6 +639,7 @@ class Task(Future[_R]):
         *,
         loop: asyncio.AbstractEventLoop | None = None,
         name: str | None = None,
+        context: Context | None = None,
     ) -> None:
         super().__init__(loop=loop)
         if self._source_traceback:
@@ -647,10 +655,15 @@ class Task(Future[_R]):
         else:
             self._name = str(name)
 
+        self._num_cancels_requested = 0
         self._must_cancel = False
         self._fut_waiter: asyncio.Future[Any] | None = None
         self._coro = coro
-        self._context = contextvars.copy_context()
+
+        if context is None:
+            self._context = contextvars.copy_context()
+        else:
+            self._context = context
 
         self._loop.call_soon(self.__step, context=self._context)  # type: ignore
         asyncio._register_task(self)  # type: ignore
@@ -671,6 +684,9 @@ class Task(Future[_R]):
 
     def get_coro(self) -> Awaitable[_R]:
         return self._coro
+
+    def get_context(self) -> Context:
+        return self._context
 
     def get_name(self) -> str:
         return self._name
@@ -743,6 +759,13 @@ class Task(Future[_R]):
             self._log_traceback = False
             if self.done():
                 return False
+            if sys.version_info >= (3, 11):
+                self._num_cancels_requested += 1
+            # These two lines are controversial.  See discussion starting at
+            # https://github.com/python/cpython/pull/31394#issuecomment-1053545331
+            # Also remember that this is duplicated in _asynciomodule.c.
+            # if self._num_cancels_requested > 1:
+            #     return False
             if self._fut_waiter is not None:
                 if self._fut_waiter.cancel(msg=msg):
                     # Leave self._fut_waiter; it may be a Task that
@@ -788,6 +811,28 @@ class Task(Future[_R]):
             # It must be the case that self.__step is already scheduled.
             self._must_cancel = True
             return True
+
+    if sys.version_info >= (3, 11):
+
+        def cancelling(self) -> int:
+            """Return the count of the task's cancellation requests.
+
+            This count is incremented when .cancel() is called
+            and may be decremented using .uncancel().
+            """
+            return self._num_cancels_requested
+
+        def uncancel(self) -> int:
+            """Decrement the task's count of cancellation requests.
+
+            This should be called by the party that called `cancel()` on the task
+            beforehand.
+
+            Returns the remaining number of cancellation requests.
+            """
+            if self._num_cancels_requested > 0:
+                self._num_cancels_requested -= 1
+            return self._num_cancels_requested
 
     def __step(self, exc: BaseException | None = None) -> None:
         if self.done():

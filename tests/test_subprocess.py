@@ -85,7 +85,7 @@ class TestSubprocess(unittest.TestCase):
         return [sys.executable, str(script)] + list(args)
 
     def shell_cmd(self, *args: str) -> str:
-        return " ".join(shlex.quote(part) for part in self.exec_cmd(*args))
+        return shlex.join(self.exec_cmd(*args))
 
     def test_exec(self) -> None:
         async def f() -> None:

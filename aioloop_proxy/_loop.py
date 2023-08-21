@@ -543,10 +543,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
                     ssl_shutdown_timeout=ssl_shutdown_timeout,
                 )
             )
-            assert tr is not None
-            transp = _make_transport_proxy(tr, self)
+            if tr is not None:
+                transp = _make_transport_proxy(tr, self)
+                self._transports.add(transp)
+            else:
+                transp = None
             proto.transport = transp
-            self._transports.add(transp)
             return cast(asyncio.Transport, transp)
 
     else:

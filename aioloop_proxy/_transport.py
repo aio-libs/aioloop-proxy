@@ -18,7 +18,7 @@ class _BaseTransportProxy(asyncio.BaseTransport):
 
     def __del__(self) -> None:
         # Cleanup original transport, raise ResourceWarning early if needed
-        self._loop = None
+        self._loop = None  # type: ignore[assignment]
         # self._orig = None  # keep a ref to origin transport
 
     def __getattr__(self, name: str) -> Any:

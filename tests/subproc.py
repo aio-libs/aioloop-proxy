@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-from typing import List
 
 PARSER = argparse.ArgumentParser(description="Subprocess test helper")
 PARSER.add_argument(
@@ -12,7 +11,7 @@ PARSER.add_argument(
 )
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     args = PARSER.parse_args(argv)
     out = sys.stderr if args.stderr else sys.stdout
     print("READY", file=out, flush=True)

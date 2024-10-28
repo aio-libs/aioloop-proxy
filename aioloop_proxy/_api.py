@@ -1,6 +1,6 @@
 import asyncio
 import contextlib
-from typing import Iterator
+from collections.abc import Iterator
 
 from ._loop import CheckKind, LoopProxy
 

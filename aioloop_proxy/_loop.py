@@ -11,18 +11,13 @@ import sys
 import threading
 import warnings
 import weakref
+from collections.abc import Awaitable, Callable, Coroutine, Generator, Sequence
 from contextvars import Context
 from typing import (
     IO,
     Any,
-    Awaitable,
-    Callable,
-    Coroutine,
-    Dict,
-    Generator,
+    ParamSpec,
     Protocol,
-    Sequence,
-    Tuple,
     TypeVar,
     Union,
     cast,
@@ -36,6 +31,7 @@ from ._server import _ServerProxy
 from ._task import Future, Task
 from ._transport import _BaseTransportProxy, _make_transport_proxy
 
+_P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 _Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
@@ -43,8 +39,7 @@ _Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
 
 # stable
 class _HasFileno(Protocol):
-    def fileno(self) -> int:
-        ...
+    def fileno(self) -> int: ...
 
 
 class _TaskFactory(Protocol):
@@ -52,21 +47,20 @@ class _TaskFactory(Protocol):
         self,
         __loop: asyncio.AbstractEventLoop,
         __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
-    ) -> asyncio.Future[_R]:
-        ...
+    ) -> asyncio.Future[_R]: ...
 
 
 _FileDescriptor = int  # stable
 _FileDescriptorLike = Union[int, _HasFileno]  # stable
 
-_Address = Union[Tuple[str, int], Tuple[str, int, int, int]]
+_Address = Union[tuple[str, int], tuple[str, int, int, int]]
 
-_ExceptionContext = Dict[str, Any]
+_ExceptionContext = dict[str, Any]
 _ExceptionHandler = Callable[[asyncio.AbstractEventLoop, _ExceptionContext], Any]
 _ProtocolT = TypeVar("_ProtocolT", bound=asyncio.BaseProtocol)
 _ProtocolFactory = Callable[[], asyncio.BaseProtocol]
 _SSLContext = Union[bool, ssl.SSLContext, None]
-_TransProtPair = Tuple[asyncio.BaseTransport, asyncio.BaseProtocol]
+_TransProtPair = tuple[asyncio.BaseTransport, asyncio.BaseProtocol]
 
 
 def _get_fd(fd: _FileDescriptorLike) -> int:
@@ -543,9 +537,12 @@ class LoopProxy(asyncio.AbstractEventLoop):
                     ssl_shutdown_timeout=ssl_shutdown_timeout,
                 )
             )
-            transp = _make_transport_proxy(tr, self)
+            if tr is not None:
+                transp = _make_transport_proxy(tr, self)
+                self._transports.add(transp)
+            else:
+                transp = None
             proto.transport = transp
-            self._transports.add(transp)
             return cast(asyncio.Transport, transp)
 
     else:
@@ -559,7 +556,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             server_side: bool = False,
             server_hostname: str | None = None,
             ssl_handshake_timeout: float | None = None,
-        ) -> asyncio.Transport:
+        ) -> asyncio.Transport | None:
             self._check_closed()
             proto = _proto_proxy(protocol, self)
             tr = await self._wrap_async(
@@ -575,6 +572,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
                     ssl_handshake_timeout=ssl_handshake_timeout,
                 )
             )
+            if tr is None:
+                return None
             transp = _make_transport_proxy(tr, self)
             proto.transport = transp
             self._transports.add(transp)
@@ -975,7 +974,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
         if self._executor_shutdown_called:
             raise RuntimeError("Executor shutdown has been called")
 
-    def _wrap_cb(self, __func: Callable[..., _R], *args: Any, **kwargs: Any) -> _R:
+    def _wrap_cb(
+        self, __func: Callable[_P, _R], *args: _P.args, **kwargs: _P.kwargs
+    ) -> _R:
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         asyncio._set_running_loop(self)

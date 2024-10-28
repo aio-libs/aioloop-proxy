@@ -5,8 +5,9 @@ import os
 import signal
 import sys
 import unittest
+from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Coroutine, cast
+from typing import Any, cast
 from unittest import mock
 
 import aioloop_proxy
@@ -83,11 +84,13 @@ class TestLoop(unittest.TestCase):
         self.assertIsNone(self.loop.get_exception_handler())
 
     def test_default_exception_handler(self) -> None:
-        with mock.patch.object(self.loop, "default_exception_handler") as deh:
-            with aioloop_proxy.proxy(self.loop) as proxy:
-                ctx = {"a": "b"}
-                proxy.default_exception_handler(ctx)
-                deh.assert_called_once_with(ctx)
+        with (
+            mock.patch.object(self.loop, "default_exception_handler") as deh,
+            aioloop_proxy.proxy(self.loop) as proxy,
+        ):
+            ctx = {"a": "b"}
+            proxy.default_exception_handler(ctx)
+            deh.assert_called_once_with(ctx)
 
         self.assertIsNone(self.loop.get_exception_handler())
 
@@ -124,8 +127,7 @@ class TestLoop(unittest.TestCase):
             async def g() -> str:
                 self.assertIs(asyncio.get_running_loop(), proxy)
                 task = proxy.create_task(f(), name="named-task")
-                if sys.version_info >= (3, 9):
-                    self.assertEqual(task.get_name(), "named-task")
+                self.assertEqual(task.get_name(), "named-task")
                 ret = await task
                 return ret
 
@@ -137,11 +139,13 @@ class TestLoop(unittest.TestCase):
             self.assertIsNone(proxy.get_task_factory())
 
     def test_task_factory_invalid(self) -> None:
-        with aioloop_proxy.proxy(self.loop) as proxy:
-            with self.assertRaisesRegex(
+        with (
+            aioloop_proxy.proxy(self.loop) as proxy,
+            self.assertRaisesRegex(
                 TypeError, "task factory must be a callable or None"
-            ):
-                proxy.set_task_factory(123)  # type: ignore[arg-type]
+            ),
+        ):
+            proxy.set_task_factory(123)  # type: ignore[arg-type]
 
     def test_run_forever(self) -> None:
         called = False

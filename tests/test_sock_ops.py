@@ -1,13 +1,11 @@
 import asyncio
 import pathlib
 import socket
-import sys
 import unittest
-from typing import Optional
 
 import aioloop_proxy
 
-_loop: Optional[asyncio.AbstractEventLoop] = None
+_loop: asyncio.AbstractEventLoop | None = None
 
 
 def setUpModule() -> None:
@@ -119,10 +117,6 @@ class TestSockOps(unittest.TestCase):
 
         self.loop.run_until_complete(f())
 
-    @unittest.skipIf(
-        sys.platform == "win32" and sys.version_info < (3, 8),
-        "sendfile is buggy for Python 3.7 on Windows",
-    )
     def test_sock_sendfile(self) -> None:
         async def f() -> None:
             async def serve(

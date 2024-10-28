@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ._loop import LoopProxy
@@ -17,8 +18,8 @@ class _BaseTransportProxy(asyncio.BaseTransport):
 
     def __del__(self) -> None:
         # Cleanup original transport, raise ResourceWarning early if needed
-        del self._loop
-        del self._orig
+        self._loop = None  # type: ignore[assignment]
+        # self._orig = None  # keep a ref to origin transport
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._orig, name)

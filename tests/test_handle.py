@@ -1,10 +1,9 @@
 import asyncio
 import unittest
-from typing import Optional
 
 import aioloop_proxy
 
-_loop: Optional[asyncio.AbstractEventLoop] = None
+_loop: asyncio.AbstractEventLoop | None = None
 
 
 def setUpModule() -> None:

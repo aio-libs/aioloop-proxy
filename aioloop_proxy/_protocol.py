@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 from typing_extensions import Buffer
 
@@ -29,7 +30,7 @@ class _BaseProtocolProxy(asyncio.BaseProtocol):
         self.transport = _make_transport_proxy(transport, self._loop)
         self._loop._wrap_cb(self.protocol.connection_made, self.transport)
 
-    def connection_lost(self, exc: BaseException | None) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         self._loop._wrap_cb(self.protocol.connection_lost, exc)
         self.wait_closed.set_result(None)
 
@@ -80,7 +81,7 @@ class _DatagramProtocolProxy(_BaseProtocolProxy, asyncio.DatagramProtocol):
         protocol = cast(asyncio.DatagramProtocol, self.protocol)
         self._loop._wrap_cb(protocol.datagram_received, data, addr)
 
-    def error_received(self, exc: BaseException) -> None:
+    def error_received(self, exc: Exception) -> None:
         protocol = cast(asyncio.DatagramProtocol, self.protocol)
         self._loop._wrap_cb(protocol.error_received, exc)
 
@@ -90,7 +91,7 @@ class _SubprocessProtocolProxy(_BaseProtocolProxy, asyncio.SubprocessProtocol):
         protocol = cast(asyncio.SubprocessProtocol, self.protocol)
         self._loop._wrap_cb(protocol.pipe_data_received, fd, data)
 
-    def pipe_connection_lost(self, fd: int, exc: BaseException | None) -> None:
+    def pipe_connection_lost(self, fd: int, exc: Exception | None) -> None:
         protocol = cast(asyncio.SubprocessProtocol, self.protocol)
         self._loop._wrap_cb(protocol.pipe_connection_lost, fd, exc)
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import contextlib
-import contextvars
 import enum
 import socket
 import ssl
@@ -23,7 +22,7 @@ from typing import (
     cast,
 )
 
-from typing_extensions import Buffer
+from typing_extensions import Buffer, TypeVarTuple, Unpack
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
@@ -32,9 +31,10 @@ from ._task import Future, Task
 from ._transport import _BaseTransportProxy, _make_transport_proxy
 
 _P = ParamSpec("_P")
-_R = TypeVar("_R")
+_T = TypeVar("_T")
+_Ts = TypeVarTuple("_Ts")
 
-_Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
+_Coro = Union[Coroutine[Any, Any, _T], Generator[Any, None, _T]]
 
 
 # stable
@@ -46,8 +46,8 @@ class _TaskFactory(Protocol):
     def __call__(
         self,
         __loop: asyncio.AbstractEventLoop,
-        __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
-    ) -> asyncio.Future[_R]: ...
+        __factory: Coroutine[Any, Any, _T] | Generator[Any, None, _T],
+    ) -> asyncio.Future[_T]: ...
 
 
 _FileDescriptor = int  # stable
@@ -236,9 +236,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
         self._parent.run_forever()
 
     def run_until_complete(
-        self, coro_or_future: Awaitable[_R] | Generator[Any, None, _R]
-    ) -> _R:
-        async def main() -> _R:
+        self, coro_or_future: Awaitable[_T] | Generator[Any, None, _T]
+    ) -> _T:
+        async def main() -> _T:
             new_task = not asyncio.isfuture(coro_or_future)
             future = asyncio.ensure_future(coro_or_future, loop=self)  # type:ignore
             if new_task:
@@ -254,7 +254,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
                 ret = await waiter
             finally:
                 self._root_task = None
-            return cast(_R, ret)
+            return cast(_T, ret)
 
         return self._parent.run_until_complete(main())
 
@@ -313,9 +313,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def call_soon(
         self,
-        callback: Callable[..., Any],
-        *args: Any,
-        context: contextvars.Context | None = None,
+        callback: Callable[[Unpack[_Ts]], object],
+        *args: Unpack[_Ts],
+        context: Context | None = None,
     ) -> asyncio.Handle:
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
@@ -328,9 +328,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_later(
         self,
         delay: float,
-        callback: Callable[..., Any],
-        *args: Any,
-        context: contextvars.Context | None = None,
+        callback: Callable[[Unpack[_Ts]], object],
+        *args: Unpack[_Ts],
+        context: Context | None = None,
     ) -> asyncio.TimerHandle:
         self._check_closed()
         timer = _ProxyTimerHandle(self.time() + delay, callback, args, self, context)
@@ -343,9 +343,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
     def call_at(
         self,
         when: float,
-        callback: Callable[..., Any],
-        *args: Any,
-        context: contextvars.Context | None = None,
+        callback: Callable[[Unpack[_Ts]], object],
+        *args: Unpack[_Ts],
+        context: Context | None = None,
     ) -> asyncio.TimerHandle:
         self._check_closed()
         timer = _ProxyTimerHandle(when, callback, args, self, context)
@@ -359,17 +359,17 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return self._parent.time() + self._time_offset
 
     def create_future(self) -> asyncio.Future[Any]:
-        return Future(loop=self)  # type: ignore[return-value, misc]
+        return cast(asyncio.Future[Any], Future(loop=self))
 
     # Method scheduling a coroutine object: create a task.
 
     def create_task(
         self,
-        coro: Generator[Any, None, _R] | Coroutine[Any, Any, _R],
+        coro: Generator[Any, None, _T] | Coroutine[Any, Any, _T],
         *,
         name: str | None = None,
         context: Context | None = None,
-    ) -> asyncio.Task[_R]:
+    ) -> asyncio.Task[_T]:
         self._check_closed()
         if self._task_factory is None:
             task = Task(coro, loop=self, name=name)
@@ -391,9 +391,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def call_soon_threadsafe(
         self,
-        callback: Callable[..., Any],
-        *args: Any,
-        context: contextvars.Context | None = None,
+        callback: Callable[[Unpack[_Ts]], object],
+        *args: Unpack[_Ts],
+        context: Context | None = None,
     ) -> asyncio.Handle:
         self._check_closed()
         handle = _ProxyHandle(callback, args, self, context)
@@ -404,8 +404,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
         return handle
 
     def run_in_executor(
-        self, executor: Any, func: Callable[..., _R], *args: Any
-    ) -> asyncio.Future[_R]:
+        self, executor: Any, func: Callable[[Unpack[_Ts]], _T], *args: Unpack[_Ts]
+    ) -> asyncio.Future[_T]:
         self._check_closed()
         if executor is None:
             executor = self._default_executor
@@ -808,7 +808,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
     # False if there was nothing to delete.
 
     def add_reader(
-        self, fd: _FileDescriptorLike, callback: Callable[..., Any], *args: Any
+        self,
+        fd: _FileDescriptorLike,
+        callback: Callable[[Unpack[_Ts]], Any],
+        *args: Unpack[_Ts],
     ) -> None:
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
@@ -827,7 +830,10 @@ class LoopProxy(asyncio.AbstractEventLoop):
             return False
 
     def add_writer(
-        self, fd: _FileDescriptorLike, callback: Callable[..., Any], *args: Any
+        self,
+        fd: _FileDescriptorLike,
+        callback: Callable[[Unpack[_Ts]], Any],
+        *args: Unpack[_Ts],
     ) -> None:
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
@@ -908,7 +914,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
     # Signal handling.
 
     def add_signal_handler(
-        self, sig: int, callback: Callable[..., Any], *args: Any
+        self, sig: int, callback: Callable[[Unpack[_Ts]], object], *args: Unpack[_Ts]
     ) -> None:
         self._check_closed()
         handle = asyncio.Handle(callback, args, self)
@@ -975,8 +981,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             raise RuntimeError("Executor shutdown has been called")
 
     def _wrap_cb(
-        self, __func: Callable[_P, _R], *args: _P.args, **kwargs: _P.kwargs
-    ) -> _R:
+        self, __func: Callable[_P, _T], *args: _P.args, **kwargs: _P.kwargs
+    ) -> _T:
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         asyncio._set_running_loop(self)
@@ -986,8 +992,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
             asyncio._set_running_loop(loop)
 
     def _wrap_async(
-        self, coro_or_future: Awaitable[_R] | Coroutine[Any, Any, _R]
-    ) -> asyncio.Future[_R]:
+        self, coro_or_future: Awaitable[_T] | Coroutine[Any, Any, _T]
+    ) -> asyncio.Future[_T]:
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         assert loop is None or loop is self
@@ -998,14 +1004,14 @@ class LoopProxy(asyncio.AbstractEventLoop):
 
     def _chain_future(
         self,
-        target: asyncio.Future[_R],
-        source: asyncio.Future[_R],
+        target: asyncio.Future[_T],
+        source: asyncio.Future[_T],
     ) -> None:
-        def _call_check_cancel(target: asyncio.Future[_R]) -> None:
+        def _call_check_cancel(target: asyncio.Future[_T]) -> None:
             if target.cancelled():
                 source.cancel()
 
-        def _call_set_state(source: asyncio.Future[_R]) -> None:
+        def _call_set_state(source: asyncio.Future[_T]) -> None:
             if source.cancelled():
                 target.cancel()
                 return

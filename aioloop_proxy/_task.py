@@ -175,7 +175,7 @@ def _task_print_stack(task: Any, limit: Any, file: Any) -> None:
     else:
         print(f"Stack for {task!r} (most recent call last):", file=file)
 
-    traceback.print_list(extracted_list, file=file)  # type: ignore
+    traceback.print_list(extracted_list, file=file)
     if exc is not None:
         for line in traceback.format_exception_only(exc.__class__, exc):
             print(line, file=file, end="")
@@ -299,7 +299,7 @@ def _format_coroutine(coro: Any) -> Any:
     coro_frame = None
     if hasattr(coro, "gi_frame") and coro.gi_frame:
         coro_frame = coro.gi_frame
-    elif hasattr(coro, "cr_frame") and coro.cr_frame:  # type: ignore
+    elif hasattr(coro, "cr_frame") and coro.cr_frame:
         coro_frame = coro.cr_frame
 
     # If Cython's coroutine has a fake code object without proper

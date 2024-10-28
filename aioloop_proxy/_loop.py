@@ -556,7 +556,7 @@ class LoopProxy(asyncio.AbstractEventLoop):
             server_side: bool = False,
             server_hostname: str | None = None,
             ssl_handshake_timeout: float | None = None,
-        ) -> asyncio.Transport:
+        ) -> asyncio.Transport | None:
             self._check_closed()
             proto = _proto_proxy(protocol, self)
             tr = await self._wrap_async(
@@ -572,6 +572,8 @@ class LoopProxy(asyncio.AbstractEventLoop):
                     ssl_handshake_timeout=ssl_handshake_timeout,
                 )
             )
+            if tr is None:
+                return None
             transp = _make_transport_proxy(tr, self)
             proto.transport = transp
             self._transports.add(transp)

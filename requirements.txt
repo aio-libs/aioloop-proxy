@@ -1,6 +1,6 @@
 -e .
 coverage==7.3.0
-mypy==1.4.1
+mypy==1.13.0
 pre-commit==4.0.1
 towncrier==23.6.0
 trustme==1.2.0

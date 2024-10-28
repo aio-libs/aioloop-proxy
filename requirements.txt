@@ -1,5 +1,5 @@
 -e .
-coverage==7.3.0
+coverage==7.6.4
 mypy==1.5.1
 pre-commit==4.0.1
 towncrier==23.6.0

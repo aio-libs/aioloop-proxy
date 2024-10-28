@@ -45,8 +45,9 @@ class _HasFileno(Protocol):
 class _TaskFactory(Protocol):
     def __call__(
         self,
-        __loop: asyncio.AbstractEventLoop,
-        __factory: Coroutine[Any, Any, _T] | Generator[Any, None, _T],
+        loop: asyncio.AbstractEventLoop,
+        factory: Coroutine[Any, Any, _T] | Generator[Any, None, _T],
+        /,
     ) -> asyncio.Future[_T]: ...
 
 

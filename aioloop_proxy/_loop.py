@@ -16,6 +16,7 @@ from contextvars import Context
 from typing import (
     IO,
     Any,
+    ParamSpec,
     Protocol,
     TypeVar,
     Union,
@@ -30,6 +31,7 @@ from ._server import _ServerProxy
 from ._task import Future, Task
 from ._transport import _BaseTransportProxy, _make_transport_proxy
 
+_P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 _Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
@@ -970,7 +972,9 @@ class LoopProxy(asyncio.AbstractEventLoop):
         if self._executor_shutdown_called:
             raise RuntimeError("Executor shutdown has been called")
 
-    def _wrap_cb(self, __func: Callable[..., _R], *args: Any, **kwargs: Any) -> _R:
+    def _wrap_cb(
+        self, __func: Callable[_P, _R], *args: _P.args, **kwargs: _P.kwargs
+    ) -> _R:
         # Private API calls are OK here
         loop = asyncio._get_running_loop()
         asyncio._set_running_loop(self)

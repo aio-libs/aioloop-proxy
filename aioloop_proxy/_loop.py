@@ -15,15 +15,13 @@ from contextvars import Context
 from typing import (
     IO,
     Any,
-    ParamSpec,
     Protocol,
-    TypeAlias,
     TypeVar,
     Union,
     cast,
 )
 
-from typing_extensions import Buffer, TypeVarTuple, Unpack
+from typing_extensions import Buffer, ParamSpec, TypeAlias, TypeVarTuple, Unpack
 
 from ._handle import _ProxyHandle, _ProxyTimerHandle
 from ._protocol import _BaseProtocolProxy, _proto_proxy, _proto_proxy_factory
@@ -41,8 +39,10 @@ if sys.version_info >= (3, 12):
     _AwaitableLike: TypeAlias = Awaitable[_T_co]
     _CoroutineLike: TypeAlias = Coroutine[Any, Any, _T_co]
 else:
-    _AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
-    _CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
+    _AwaitableLike: TypeAlias = Union[Generator[Any, None, _T_co], Awaitable[_T_co]]
+    _CoroutineLike: TypeAlias = Union[
+        Generator[Any, None, _T_co], Coroutine[Any, Any, _T_co]
+    ]
 
 
 # stable

@@ -14,12 +14,12 @@ repos:
   hooks:
   - id: sort-all
 - repo: https://github.com/Zac-HD/shed
-  rev: 2024.10.1
+  rev: 2024.3.1  # be careful, 2024.10.1 doesn't support Python 3.9
   hooks:
   - id: shed
     args:
     - --refactor
-    - --py310-plus
+    - --py39-plus
     types_or:
     - python
     - markdown

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -37,3 +38,11 @@ class _ServerProxy(asyncio.AbstractServer):
 
     async def wait_closed(self) -> None:
         await self._loop._wrap_async(self._orig.wait_closed())
+
+    if sys.version_info >= (3, 13):
+
+        def close_clients(self) -> None:
+            self._loop._wrap_cb(self._orig.close_clients)
+
+        def abort_clients(self) -> None:
+            self._loop._wrap_cb(self._orig.abort_clients)

@@ -17,6 +17,7 @@ from typing import (
     Any,
     ParamSpec,
     Protocol,
+    TypeAlias,
     TypeVar,
     Union,
     cast,
@@ -34,7 +35,14 @@ _P = ParamSpec("_P")
 _T = TypeVar("_T")
 _Ts = TypeVarTuple("_Ts")
 
-_Coro = Union[Coroutine[Any, Any, _T], Generator[Any, None, _T]]
+_T_co = TypeVar("_T_co", covariant=True)
+
+if sys.version_info >= (3, 12):
+    _AwaitableLike: TypeAlias = Awaitable[_T_co]
+    _CoroutineLike: TypeAlias = Coroutine[Any, Any, _T_co]
+else:
+    _AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
+    _CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
 
 
 # stable
@@ -46,7 +54,7 @@ class _TaskFactory(Protocol):
     def __call__(
         self,
         loop: asyncio.AbstractEventLoop,
-        factory: Coroutine[Any, Any, _T] | Generator[Any, None, _T],
+        factory: _CoroutineLike[_T],
         /,
     ) -> asyncio.Future[_T]: ...
 

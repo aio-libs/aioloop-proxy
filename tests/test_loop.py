@@ -11,7 +11,7 @@ from typing import Any, cast
 from unittest import mock
 
 import aioloop_proxy
-from aioloop_proxy._loop import _T, _Coro, _ExceptionContext
+from aioloop_proxy._loop import _T, _CoroutineLike, _ExceptionContext
 
 _loop: asyncio.AbstractEventLoop | None = None
 
@@ -110,7 +110,7 @@ class TestLoop(unittest.TestCase):
 
             def factory(
                 loop: asyncio.AbstractEventLoop,
-                coro: _Coro[_T],
+                coro: _CoroutineLike[_T],
             ) -> asyncio.Task[_T]:
                 nonlocal called
                 called = True

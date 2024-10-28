@@ -120,7 +120,7 @@ jobs:
       run: |
         coverage xml
     - name: Upload coverage artifact
-      uses: aio-libs/prepare-coverage@v21.9.1
+      uses: aio-libs/prepare-coverage@v24.9.2
       with:
         key: ${{ matrix.pyver }}-${{ matrix.os }}
 

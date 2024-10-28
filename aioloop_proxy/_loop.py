@@ -11,18 +11,12 @@ import sys
 import threading
 import warnings
 import weakref
+from collections.abc import Awaitable, Callable, Coroutine, Generator, Sequence
 from contextvars import Context
 from typing import (
     IO,
     Any,
-    Awaitable,
-    Callable,
-    Coroutine,
-    Dict,
-    Generator,
     Protocol,
-    Sequence,
-    Tuple,
     TypeVar,
     Union,
     cast,
@@ -43,8 +37,7 @@ _Coro = Union[Coroutine[Any, Any, _R], Generator[Any, None, _R]]
 
 # stable
 class _HasFileno(Protocol):
-    def fileno(self) -> int:
-        ...
+    def fileno(self) -> int: ...
 
 
 class _TaskFactory(Protocol):
@@ -52,21 +45,20 @@ class _TaskFactory(Protocol):
         self,
         __loop: asyncio.AbstractEventLoop,
         __factory: Coroutine[Any, Any, _R] | Generator[Any, None, _R],
-    ) -> asyncio.Future[_R]:
-        ...
+    ) -> asyncio.Future[_R]: ...
 
 
 _FileDescriptor = int  # stable
 _FileDescriptorLike = Union[int, _HasFileno]  # stable
 
-_Address = Union[Tuple[str, int], Tuple[str, int, int, int]]
+_Address = Union[tuple[str, int], tuple[str, int, int, int]]
 
-_ExceptionContext = Dict[str, Any]
+_ExceptionContext = dict[str, Any]
 _ExceptionHandler = Callable[[asyncio.AbstractEventLoop, _ExceptionContext], Any]
 _ProtocolT = TypeVar("_ProtocolT", bound=asyncio.BaseProtocol)
 _ProtocolFactory = Callable[[], asyncio.BaseProtocol]
 _SSLContext = Union[bool, ssl.SSLContext, None]
-_TransProtPair = Tuple[asyncio.BaseTransport, asyncio.BaseProtocol]
+_TransProtPair = tuple[asyncio.BaseTransport, asyncio.BaseProtocol]
 
 
 def _get_fd(fd: _FileDescriptorLike) -> int:

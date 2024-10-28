@@ -1,11 +1,10 @@
 import asyncio
 import socket
 import unittest
-from typing import Optional, Tuple
 
 import aioloop_proxy
 
-_loop: Optional[asyncio.AbstractEventLoop] = None
+_loop: asyncio.AbstractEventLoop | None = None
 
 
 def setUpModule() -> None:
@@ -51,7 +50,7 @@ class TestDNS(unittest.TestCase):
             self.assertEqual(info, expected)
 
         addrs = socket.getaddrinfo("example.org", 80, proto=socket.IPPROTO_TCP)
-        addr: Tuple[str, int] = tuple(addrs[0][4][:2])  # type: ignore[assignment]
+        addr: tuple[str, int] = tuple(addrs[0][4][:2])  # type: ignore[assignment]
         expected = socket.getnameinfo(addr, 0)
 
         self.loop.run_until_complete(f())

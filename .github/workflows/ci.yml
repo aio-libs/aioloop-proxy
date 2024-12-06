@@ -25,14 +25,14 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5.3.0
     - name: Cache pre-commit
-      uses: actions/cache@v4.1.2
+      uses: actions/cache@v4.2.0
       with:
         key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
         path: ~/.cache/pre-commit
         restore-keys: |
             pre-commit-
     - name: Cache pip
-      uses: actions/cache@v4.1.2
+      uses: actions/cache@v4.2.0
       with:
         key: pip-lint-${{ hashFiles('setup.cfg', 'requirements.txt') }}
         path: ~/.cache/pip
@@ -67,7 +67,7 @@ jobs:
       run: |
         echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"    # - name: Cache
     - name: Cache PyPI
-      uses: actions/cache@v4.1.2
+      uses: actions/cache@v4.2.0
       with:
         key: pip-ci-${{ runner.os }}-${{ matrix.pyver }}-${{ hashFiles('setup.cfg', 'requirements.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}
@@ -103,7 +103,7 @@ jobs:
       run: |
         echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"    # - name: Cache
     - name: Cache PyPI
-      uses: actions/cache@v4.1.2
+      uses: actions/cache@v4.2.0
       with:
         key: pip-ci-${{ runner.os }}-${{ matrix.pyver }}-${{ hashFiles('setup.cfg', 'requirements.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}

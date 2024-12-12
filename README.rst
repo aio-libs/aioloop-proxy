@@ -5,7 +5,7 @@ A proxy for ``asyncio.AbstractEventLoop`` for testing purposes.
 
 When tests writing for asyncio based code, there are controversial requirements.
 
-First, a signle event loop for the whole test session (or test subset) is desired.  For
+First, a single event loop for the whole test session (or test subset) is desired.  For
 example, if web server starts slowly, there is a temptation to create a server only once
 and access to the single web server instance from each test.
 
